@@ -9,7 +9,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class Tokenizer {
-    private static final Pattern WORD = Pattern.compile("[\\p{L}\\p{N}\\p{M}]+");
+    private static final Pattern WORD = Pattern.compile("[\\p{L}\\p{N}][\\p{L}\\p{N}\\p{M}]*");
 
     public List<Token> tokenize(String text) {
         Objects.requireNonNull(text, "text");

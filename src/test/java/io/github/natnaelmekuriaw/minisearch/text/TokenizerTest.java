@@ -28,6 +28,11 @@ class TokenizerTest {
     }
 
     @Test
+    void ignoresStandaloneCombiningMarks() {
+        assertEquals(List.of(new Token("word", 0)), tokenizer.tokenize("\u0301 word"));
+    }
+
+    @Test
     void returnsAnImmutableEmptyListForNonWords() {
         List<Token> tokens = tokenizer.tokenize("  ...  ");
         assertEquals(List.of(), tokens);
