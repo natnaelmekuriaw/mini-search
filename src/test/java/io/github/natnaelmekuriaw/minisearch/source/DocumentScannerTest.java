@@ -44,4 +44,13 @@ class DocumentScannerTest {
         Files.write(directory.resolve("broken.txt"), new byte[] {(byte) 0xC3, (byte) 0x28});
         assertThrows(IOException.class, () -> scanner.scan(directory));
     }
+
+    @Test
+    void rejectsDocumentsAboveTheSizeLimit() throws IOException {
+        Path large = directory.resolve("large.txt");
+        try (var output = Files.newOutputStream(large)) {
+            output.write(new byte[(int) DocumentScanner.MAX_DOCUMENT_BYTES + 1]);
+        }
+        assertThrows(IOException.class, () -> scanner.scan(directory));
+    }
 }
