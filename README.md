@@ -7,7 +7,8 @@ the CLI, and the REST API are planned for later stages.
 ## Requirements
 
 - JDK 21 or newer
-- Maven 3.6.3 or newer
+- Internet access on the first verification run to download the pinned Maven
+  distribution and project test dependencies
 
 Run the project checks from PowerShell:
 
@@ -15,7 +16,8 @@ Run the project checks from PowerShell:
 .\scripts\verify.ps1
 ```
 
-The script checks for the required tools and runs the Maven verification lifecycle.
+The script checks for the JDK, downloads a checksum-verified Maven distribution
+when needed, and runs the Maven verification lifecycle.
 
 ## Index a directory
 
