@@ -1,8 +1,8 @@
 # MiniSearch
 
-MiniSearch is a small Java document search engine. It builds an in-memory positional
-inverted index for UTF-8 text and Markdown files and ranks query results with BM25.
-Persistence, the CLI, and the REST API are planned for later stages.
+MiniSearch is a small Java document search engine. It builds a positional inverted
+index for UTF-8 text and Markdown files and ranks query results with BM25. The index
+can be saved and refreshed. The CLI and REST API are planned for later stages.
 
 ## Requirements
 
@@ -24,6 +24,7 @@ when needed, and runs the Maven verification lifecycle.
 ```java
 import io.github.natnaelmekuriaw.minisearch.index.InMemoryIndex;
 import io.github.natnaelmekuriaw.minisearch.index.IndexBuilder;
+import io.github.natnaelmekuriaw.minisearch.index.IndexRepository;
 import io.github.natnaelmekuriaw.minisearch.search.SearchService;
 import java.nio.file.Path;
 
@@ -31,6 +32,11 @@ InMemoryIndex index = new IndexBuilder().build(Path.of("documents"));
 System.out.println(index.documents());
 System.out.println(index.postings("search"));
 System.out.println(new SearchService(index).search("java \"search engine\" type:md", 10));
+
+IndexRepository repository = new IndexRepository();
+repository.refresh(Path.of("documents"), Path.of("search-index.bin"));
+System.out.println(new SearchService(repository.open(Path.of("search-index.bin")))
+        .search("java", 10));
 ```
 
 ## Search queries
@@ -57,6 +63,17 @@ after the first character. Each term is normalized with NFKC and lowercased with
 `Locale.ROOT`. Positions are zero-based token offsets. `postings` accepts one term
 and returns an empty list when that term is absent.
 
-The build currently reads the corpus and retains source text in memory for snippets.
-It creates a fresh index each time and has no incremental update or saved-index
-format yet.
+`IndexRepository.refresh` creates a snapshot on the first call. Later calls compare
+source contents with the saved documents, retokenize only added or changed files,
+remove deleted files, and reuse postings for unchanged files. It returns counts for
+added, changed, removed, and unchanged documents. Refresh still reads each source
+file to detect changes. Search loads the saved snapshot without scanning or
+retokenizing the source directory.
+
+The binary snapshot includes source text for snippets, a format version, and a
+SHA-256 checksum. Writes use a temporary file and atomic replacement. A damaged or
+unsupported snapshot causes an error rather than an automatic rebuild. Keep the
+snapshot outside the document directory or give it an extension other than `.txt`
+or `.md`. The format is currently version 1, and migration between versions is not
+available. Snapshots and loaded indexes still require memory proportional to the
+corpus size.
