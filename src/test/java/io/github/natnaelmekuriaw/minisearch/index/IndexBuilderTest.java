@@ -50,4 +50,43 @@ class IndexBuilderTest {
         InMemoryIndex index = builder.build(directory);
         assertThrows(IllegalArgumentException.class, () -> index.postings("two terms"));
     }
+
+    @Test
+    void updatesAddedChangedAndRemovedDocuments() throws IOException {
+        Files.writeString(directory.resolve("keep.md"), "java search");
+        Files.writeString(directory.resolve("change.txt"), "old term");
+        Files.writeString(directory.resolve("remove.txt"), "gone term");
+        InMemoryIndex initial = builder.build(directory);
+
+        Files.writeString(directory.resolve("change.txt"), "new term new");
+        Files.delete(directory.resolve("remove.txt"));
+        Files.writeString(directory.resolve("add.md"), "fresh term");
+        IndexUpdate update = builder.update(directory, initial);
+
+        assertEquals(1, update.added());
+        assertEquals(1, update.changed());
+        assertEquals(1, update.removed());
+        assertEquals(1, update.unchanged());
+        assertEquals(List.of("add.md", "change.txt", "keep.md"),
+                update.index().documents().stream().map(IndexedDocument::path).toList());
+        assertEquals(List.of(new Posting("change.txt", List.of(0, 2))),
+                update.index().postings("new"));
+        assertEquals(List.of(), update.index().postings("old"));
+        assertEquals(List.of(), update.index().postings("gone"));
+        assertEquals(List.of(new Posting("keep.md", List.of(0))),
+                update.index().postings("java"));
+    }
+
+    @Test
+    void unchangedRefreshKeepsTheSameSearchData() throws IOException {
+        Files.writeString(directory.resolve("note.md"), "java search java");
+        InMemoryIndex initial = builder.build(directory);
+
+        IndexUpdate update = builder.update(directory, initial);
+
+        assertEquals(false, update.hasChanges());
+        assertEquals(1, update.unchanged());
+        assertEquals(initial.documents(), update.index().documents());
+        assertEquals(initial.postings("java"), update.index().postings("java"));
+    }
 }

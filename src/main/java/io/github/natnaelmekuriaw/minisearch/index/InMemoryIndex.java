@@ -29,6 +29,10 @@ public final class InMemoryIndex {
         return postings.size();
     }
 
+    Map<String, List<Posting>> allPostings() {
+        return postings;
+    }
+
     public Optional<String> content(String path) {
         return Optional.ofNullable(contents.get(Objects.requireNonNull(path, "path")));
     }
