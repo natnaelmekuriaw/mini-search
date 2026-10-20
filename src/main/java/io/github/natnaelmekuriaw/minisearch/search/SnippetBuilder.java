@@ -1,6 +1,5 @@
 package io.github.natnaelmekuriaw.minisearch.search;
 
-import io.github.natnaelmekuriaw.minisearch.text.TokenSpan;
 import io.github.natnaelmekuriaw.minisearch.text.Tokenizer;
 import java.util.Objects;
 import java.util.Set;
@@ -35,10 +34,10 @@ final class SnippetBuilder {
     }
 
     private int firstMatch(String content, Set<String> queryTerms) {
-        for (TokenSpan span : tokenizer.locate(content)) {
-            if (queryTerms.isEmpty() || queryTerms.contains(span.term())) {
-                return span.startOffset();
-            }
+        int match = tokenizer.firstMatch(content, queryTerms)
+                .map(span -> span.startOffset()).orElse(-1);
+        if (match >= 0) {
+            return match;
         }
         for (int position = 0; position < content.length(); position++) {
             if (!Character.isWhitespace(content.charAt(position))) {

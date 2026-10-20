@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class TokenizerTest {
@@ -49,5 +51,12 @@ class TokenizerTest {
         assertEquals(List.of(
                 new TokenSpan("café", 0, 0, 5),
                 new TokenSpan("hi", 1, 6, 8)), tokenizer.locate("CAFE\u0301 hi"));
+    }
+
+    @Test
+    void locatesFirstMatchingTokenWithoutChangingPositions() {
+        assertEquals(Optional.of(new TokenSpan("java", 2, 14, 18)),
+                tokenizer.firstMatch("search engine Java", Set.of("java")));
+        assertEquals(Optional.empty(), tokenizer.firstMatch("search", Set.of("java")));
     }
 }
