@@ -5,16 +5,19 @@ import io.github.natnaelmekuriaw.minisearch.text.Tokenizer;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 public final class InMemoryIndex {
     private final List<IndexedDocument> documents;
     private final Map<String, List<Posting>> postings;
+    private final Map<String, String> contents;
     private final Tokenizer tokenizer;
 
     InMemoryIndex(List<IndexedDocument> documents, Map<String, List<Posting>> postings,
-                  Tokenizer tokenizer) {
+                  Map<String, String> contents, Tokenizer tokenizer) {
         this.documents = List.copyOf(documents);
         this.postings = Map.copyOf(postings);
+        this.contents = Map.copyOf(contents);
         this.tokenizer = Objects.requireNonNull(tokenizer, "tokenizer");
     }
 
@@ -24,6 +27,10 @@ public final class InMemoryIndex {
 
     public int termCount() {
         return postings.size();
+    }
+
+    public Optional<String> content(String path) {
+        return Optional.ofNullable(contents.get(Objects.requireNonNull(path, "path")));
     }
 
     public List<Posting> postings(String term) {

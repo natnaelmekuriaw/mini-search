@@ -31,6 +31,7 @@ class IndexBuilderTest {
                 new Posting("a.txt", List.of(0)),
                 new Posting("b.md", List.of(1))), index.postings("search"));
         assertEquals(3, index.termCount());
+        assertEquals("Java search Java", index.content("b.md").orElseThrow());
     }
 
     @Test

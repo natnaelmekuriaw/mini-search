@@ -18,10 +18,12 @@ public final class IndexBuilder {
     public InMemoryIndex build(Path root) throws IOException {
         List<IndexedDocument> documents = new ArrayList<>();
         Map<String, Map<String, List<Integer>>> terms = new TreeMap<>();
+        Map<String, String> contents = new TreeMap<>();
 
         for (SourceDocument source : scanner.scan(root)) {
             List<Token> tokens = tokenizer.tokenize(source.content());
             documents.add(new IndexedDocument(source.path(), tokens.size()));
+            contents.put(source.path(), source.content());
             for (Token token : tokens) {
                 terms.computeIfAbsent(token.term(), ignored -> new TreeMap<>())
                         .computeIfAbsent(source.path(), ignored -> new ArrayList<>())
@@ -37,6 +39,6 @@ public final class IndexBuilder {
             }
             postings.put(term.getKey(), List.copyOf(termPostings));
         }
-        return new InMemoryIndex(documents, postings, tokenizer);
+        return new InMemoryIndex(documents, postings, contents, tokenizer);
     }
 }
