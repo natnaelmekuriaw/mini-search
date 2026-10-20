@@ -37,6 +37,9 @@ class SearchServiceTest {
         SearchService service = service();
 
         assertEquals(List.of("adjacent.md"), paths(service.search("\"java search\"")));
+        assertEquals(List.of("adjacent.md"),
+                paths(service.search("\"java search\" engine")));
+        assertEquals(List.of(), service.search("\"java search\" missing"));
         assertEquals(List.of(), service.search("\"engine java\""));
     }
 
@@ -98,6 +101,14 @@ class SearchServiceTest {
 
         assertEquals(List.of(), service.search(" "));
         assertEquals(List.of(), service.search("missing"));
+        assertThrows(IllegalArgumentException.class, () -> service.search("type:pdf"));
+    }
+
+    @Test
+    void handlesAnEmptyCorpus() throws IOException {
+        SearchService service = service();
+        assertEquals(List.of(), service.search("java"));
+        assertEquals(List.of(), service.search("type:md"));
     }
 
     @Test

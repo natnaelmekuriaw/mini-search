@@ -2,6 +2,7 @@ package io.github.natnaelmekuriaw.minisearch.search;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Optional;
@@ -41,7 +42,7 @@ class QueryParserTest {
 
     @Test
     void distinguishesEmptyInput() {
-        assertEquals(true, parser.parse(" \t ").isEmpty());
+        assertTrue(parser.parse(" \t ").isEmpty());
     }
 
     @Test
