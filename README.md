@@ -2,7 +2,8 @@
 
 MiniSearch is a small Java document search engine. It builds a positional inverted
 index for UTF-8 text and Markdown files and ranks query results with BM25. The index
-can be saved and refreshed. The CLI and REST API are planned for later stages.
+can be saved and refreshed through Java or the CLI. The REST API is planned
+for a later stage.
 
 ## Requirements
 
@@ -18,6 +19,21 @@ Run the project checks from PowerShell:
 
 The script checks for the JDK, downloads a checksum-verified Maven distribution
 when needed, and runs the Maven verification lifecycle.
+
+## Command line
+
+After verification, run the executable JAR from PowerShell:
+
+```powershell
+java -jar target/minisearch-0.1.0-SNAPSHOT.jar index --source documents --index search-index.bin
+java -jar target/minisearch-0.1.0-SNAPSHOT.jar search --index search-index.bin --query 'java "search engine" type:md' --limit 10
+```
+
+Run `java -jar target/minisearch-0.1.0-SNAPSHOT.jar --help` for usage. `index`
+creates or refreshes the snapshot and reports added, changed, removed, and unchanged
+document counts. `search` reads the saved snapshot and prints ranked paths, scores,
+and snippets. It defaults to 20 results. Command errors return exit code 2 for
+invalid arguments or queries and 1 for file errors.
 
 ## Index a directory
 
