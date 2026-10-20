@@ -37,6 +37,18 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.6.0</version>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.5.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>io.github.natnaelmekuriaw.minisearch.cli.MiniSearchCli</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>
