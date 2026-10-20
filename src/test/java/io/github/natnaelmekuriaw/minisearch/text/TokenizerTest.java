@@ -48,9 +48,10 @@ class TokenizerTest {
 
     @Test
     void reportsSourceOffsetsForNormalizedTokens() {
-        assertEquals(List.of(
-                new TokenSpan("café", 0, 0, 5),
-                new TokenSpan("hi", 1, 6, 8)), tokenizer.locate("CAFE\u0301 hi"));
+        assertEquals(Optional.of(new TokenSpan("café", 0, 0, 5)),
+                tokenizer.firstMatch("CAFE\u0301 hi", Set.of("café")));
+        assertEquals(Optional.of(new TokenSpan("hi", 1, 6, 8)),
+                tokenizer.firstMatch("CAFE\u0301 hi", Set.of("hi")));
     }
 
     @Test
