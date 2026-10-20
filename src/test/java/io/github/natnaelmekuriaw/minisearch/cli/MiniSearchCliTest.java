@@ -86,6 +86,28 @@ class MiniSearchCliTest {
         assertFalse(search.err().contains("Exception"));
     }
 
+    @Test
+    void limitsResultsAndReportsInvalidQueries() throws IOException {
+        Path source = Files.createDirectory(directory.resolve("docs"));
+        Files.writeString(source.resolve("a.md"), "java");
+        Files.writeString(source.resolve("b.md"), "java");
+        Path snapshot = directory.resolve("index.bin");
+        run("index", "--source", source.toString(), "--index", snapshot.toString());
+
+        Result limited = run("search", "--index", snapshot.toString(),
+                "--query", "java", "--limit", "1");
+        Result invalid = run("search", "--index", snapshot.toString(),
+                "--query", "type:pdf");
+
+        assertEquals(0, limited.code());
+        assertTrue(limited.out().startsWith("1 result"));
+        assertTrue(limited.out().contains("a.md"));
+        assertFalse(limited.out().contains("b.md"));
+        assertEquals(2, invalid.code());
+        assertTrue(invalid.err().startsWith("Error: "));
+        assertEquals("", invalid.out());
+    }
+
     private Result run(String... args) {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         ByteArrayOutputStream errors = new ByteArrayOutputStream();
