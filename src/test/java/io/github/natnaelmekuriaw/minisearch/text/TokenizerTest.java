@@ -43,4 +43,11 @@ class TokenizerTest {
     void rejectsNullText() {
         assertThrows(NullPointerException.class, () -> tokenizer.tokenize(null));
     }
+
+    @Test
+    void reportsSourceOffsetsForNormalizedTokens() {
+        assertEquals(List.of(
+                new TokenSpan("café", 0, 0, 5),
+                new TokenSpan("hi", 1, 6, 8)), tokenizer.locate("CAFE\u0301 hi"));
+    }
 }
