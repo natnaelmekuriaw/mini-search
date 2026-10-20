@@ -9,6 +9,7 @@ import io.github.natnaelmekuriaw.minisearch.search.SearchService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -79,5 +80,31 @@ class IndexStoreTest {
 
         IOException error = assertThrows(IOException.class, () -> store.load(snapshot));
         assertTrue(error.getMessage().contains("version"));
+    }
+
+    @Test
+    void rejectsTruncatedSnapshots() throws IOException {
+        Path source = Files.createDirectory(directory.resolve("source"));
+        Files.writeString(source.resolve("note.txt"), "search");
+        Path snapshot = directory.resolve("index.bin");
+        store.save(snapshot, new IndexBuilder().build(source));
+        byte[] bytes = Files.readAllBytes(snapshot);
+        Files.write(snapshot, Arrays.copyOf(bytes, bytes.length - 10));
+
+        assertThrows(IOException.class, () -> store.load(snapshot));
+    }
+
+    @Test
+    void writesIdenticalBytesForIdenticalIndexes() throws IOException {
+        Path source = Files.createDirectory(directory.resolve("source"));
+        Files.writeString(source.resolve("b.txt"), "search search");
+        Files.writeString(source.resolve("a.md"), "java search");
+        Path first = directory.resolve("first.bin");
+        Path second = directory.resolve("second.bin");
+
+        store.save(first, new IndexBuilder().build(source));
+        store.save(second, new IndexBuilder().build(source));
+
+        assertArrayEquals(Files.readAllBytes(first), Files.readAllBytes(second));
     }
 }

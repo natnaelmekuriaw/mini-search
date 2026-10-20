@@ -10,6 +10,7 @@ import io.github.natnaelmekuriaw.minisearch.search.SearchService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -95,6 +96,55 @@ class IndexRepositoryTest {
 
         assertThrows(IllegalArgumentException.class, () -> repository.refresh(source, snapshot));
         assertFalse(Files.exists(snapshot));
+    }
+
+    @Test
+    void detectsChangesEvenWhenFileSizeAndTimestampMatch() throws IOException {
+        Path source = Files.createDirectory(directory.resolve("source"));
+        Path snapshot = directory.resolve("index.bin");
+        Path document = source.resolve("note.md");
+        Files.writeString(document, "alpha");
+        repository.refresh(source, snapshot);
+        FileTime timestamp = Files.getLastModifiedTime(document);
+
+        Files.writeString(document, "bravo");
+        Files.setLastModifiedTime(document, timestamp);
+        IndexUpdate update = repository.refresh(source, snapshot);
+
+        assertEquals(1, update.changed());
+        assertEquals(List.of(), repository.open(snapshot).postings("alpha"));
+        assertEquals(List.of(new Posting("note.md", List.of(0))),
+                repository.open(snapshot).postings("bravo"));
+    }
+
+    @Test
+    void removesTheFinalDocument() throws IOException {
+        Path source = Files.createDirectory(directory.resolve("source"));
+        Path snapshot = directory.resolve("index.bin");
+        Path document = source.resolve("note.txt");
+        Files.writeString(document, "search");
+        repository.refresh(source, snapshot);
+        Files.delete(document);
+
+        IndexUpdate update = repository.refresh(source, snapshot);
+
+        assertEquals(1, update.removed());
+        assertEquals(List.of(), repository.open(snapshot).documents());
+        assertEquals(List.of(), new SearchService(repository.open(snapshot)).search("search"));
+    }
+
+    @Test
+    void doesNotOverwriteAnUnreadableSnapshot() throws IOException {
+        Path source = Files.createDirectory(directory.resolve("source"));
+        Path snapshot = directory.resolve("index.bin");
+        Files.writeString(source.resolve("note.md"), "search");
+        repository.refresh(source, snapshot);
+        byte[] damaged = Files.readAllBytes(snapshot);
+        damaged[damaged.length - 1] ^= 1;
+        Files.write(snapshot, damaged);
+
+        assertThrows(IOException.class, () -> repository.refresh(source, snapshot));
+        assertArrayEquals(damaged, Files.readAllBytes(snapshot));
     }
 
     private static List<String> paths(List<SearchResult> results) {
