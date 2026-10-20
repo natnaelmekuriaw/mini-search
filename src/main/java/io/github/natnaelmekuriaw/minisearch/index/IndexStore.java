@@ -30,9 +30,9 @@ public final class IndexStore {
     private static final int MAGIC = 0x4d534958;
     private static final int VERSION = 1;
     private static final int DIGEST_BYTES = 32;
-    private static final int MAX_PATH_BYTES = 16_384;
-    private static final int MAX_TERM_BYTES = 8_192;
+    private static final int MAX_PATH_BYTES = 64 * 1024;
     private static final int MAX_CONTENT_BYTES = 8 * 1024 * 1024;
+    private static final int MAX_TERM_BYTES = MAX_CONTENT_BYTES * 16;
     private static final int MAX_DOCUMENTS = 1_000_000;
     private static final int MAX_TERMS = 10_000_000;
 
@@ -84,6 +84,9 @@ public final class IndexStore {
     }
 
     private static void writeIndex(DataOutputStream data, InMemoryIndex index) throws IOException {
+        if (index.documents().size() > MAX_DOCUMENTS || index.termCount() > MAX_TERMS) {
+            throw new IOException("Index exceeds supported document or term count");
+        }
         data.writeInt(MAGIC);
         data.writeInt(VERSION);
         data.writeInt(index.documents().size());

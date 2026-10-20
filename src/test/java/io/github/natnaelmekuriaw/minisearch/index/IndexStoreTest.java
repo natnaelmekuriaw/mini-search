@@ -107,4 +107,17 @@ class IndexStoreTest {
 
         assertArrayEquals(Files.readAllBytes(first), Files.readAllBytes(second));
     }
+
+    @Test
+    void savesLongTermsAcceptedByTheScanner() throws IOException {
+        Path source = Files.createDirectory(directory.resolve("source"));
+        String term = "a".repeat(9_000);
+        Files.writeString(source.resolve("note.txt"), term);
+        Path snapshot = directory.resolve("index.bin");
+
+        store.save(snapshot, new IndexBuilder().build(source));
+
+        assertEquals(List.of(new Posting("note.txt", List.of(0))),
+                store.load(snapshot).postings(term));
+    }
 }
