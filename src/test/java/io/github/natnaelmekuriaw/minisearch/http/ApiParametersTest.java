@@ -28,6 +28,10 @@ class ApiParametersTest {
                 () -> ApiParameters.parse("q=%GG", SEARCH));
         assertThrows(IllegalArgumentException.class,
                 () -> ApiParameters.parse("q=%C3%28", SEARCH));
+        assertThrows(IllegalArgumentException.class,
+                () -> ApiParameters.parse("q=%00", SEARCH));
+        assertThrows(IllegalArgumentException.class,
+                () -> ApiParameters.parse("q=%١A", SEARCH));
     }
 
     @Test

@@ -48,8 +48,8 @@ final class ApiParameters {
                 if (offset + 2 >= raw.length()) {
                     throw new IllegalArgumentException("Invalid percent encoding");
                 }
-                int high = Character.digit(raw.charAt(offset + 1), 16);
-                int low = Character.digit(raw.charAt(offset + 2), 16);
+                int high = hex(raw.charAt(offset + 1));
+                int low = hex(raw.charAt(offset + 2));
                 if (high < 0 || low < 0) {
                     throw new IllegalArgumentException("Invalid percent encoding");
                 }
@@ -65,12 +65,29 @@ final class ApiParameters {
             }
         }
         try {
-            return StandardCharsets.UTF_8.newDecoder()
+            String decoded = StandardCharsets.UTF_8.newDecoder()
                     .onMalformedInput(CodingErrorAction.REPORT)
                     .onUnmappableCharacter(CodingErrorAction.REPORT)
                     .decode(ByteBuffer.wrap(bytes.toByteArray())).toString();
+            if (decoded.codePoints().anyMatch(character -> Character.isISOControl(character))) {
+                throw new IllegalArgumentException("Control characters are not allowed in query parameters");
+            }
+            return decoded;
         } catch (CharacterCodingException exception) {
             throw new IllegalArgumentException("Invalid UTF-8 query encoding", exception);
         }
+    }
+
+    private static int hex(char character) {
+        if (character >= '0' && character <= '9') {
+            return character - '0';
+        }
+        if (character >= 'a' && character <= 'f') {
+            return character - 'a' + 10;
+        }
+        if (character >= 'A' && character <= 'F') {
+            return character - 'A' + 10;
+        }
+        return -1;
     }
 }
