@@ -22,6 +22,7 @@ public final class MiniSearchCli {
             Usage:
               java -jar <jar-file> index --source <directory> --index <file>
               java -jar <jar-file> search --index <file> --query <text> [--limit <number>]
+              java -jar <jar-file> suggest --index <file> --prefix <word> [--limit <number>]
               java -jar <jar-file> serve --index <file> [--host <address>] [--port <number>]
               java -jar <jar-file> --help
             """;
@@ -48,7 +49,8 @@ public final class MiniSearchCli {
             return 2;
         }
         if (args.length == 2 && args[1].equals("--help")
-                && (args[0].equals("index") || args[0].equals("search") || args[0].equals("serve"))) {
+                && (args[0].equals("index") || args[0].equals("search")
+                || args[0].equals("suggest") || args[0].equals("serve"))) {
             out.print(USAGE);
             return 0;
         }
@@ -57,6 +59,7 @@ public final class MiniSearchCli {
             switch (args[0]) {
                 case "index" -> index(args, out);
                 case "search" -> search(args, out);
+                case "suggest" -> suggest(args, out);
                 case "serve" -> serve(args, out);
                 default -> throw new IllegalArgumentException("Unknown command: " + args[0]);
             }
@@ -96,6 +99,18 @@ public final class MiniSearchCli {
             if (!result.snippet().isEmpty()) {
                 out.println("  " + result.snippet());
             }
+        }
+    }
+
+    private void suggest(String[] args, PrintStream out) throws IOException {
+        Map<String, String> options = parseOptions(args, Set.of("index", "prefix", "limit"));
+        Path snapshot = Path.of(required(options, "index"));
+        String prefix = required(options, "prefix");
+        int limit = parseLimit(options.getOrDefault("limit", "10"));
+        List<String> suggestions = new SearchService(repository.open(snapshot))
+                .suggest(prefix, limit);
+        for (String suggestion : suggestions) {
+            out.println(suggestion);
         }
     }
 
