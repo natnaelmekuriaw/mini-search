@@ -112,6 +112,7 @@ class SearchHttpServerTest {
             HttpResponse<String> unavailable = get(server, "/api/v1/search?q=alpha");
             assertEquals(503, unavailable.statusCode());
             assertTrue(unavailable.body().contains("index_unavailable"));
+            assertEquals("1", unavailable.headers().firstValue("Retry-After").orElseThrow());
 
             Files.delete(snapshot);
             new IndexRepository().refresh(directory, snapshot);

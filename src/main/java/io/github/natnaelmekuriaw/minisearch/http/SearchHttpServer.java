@@ -63,6 +63,7 @@ public final class SearchHttpServer implements AutoCloseable {
             try {
                 view = snapshots.current();
             } catch (IOException exception) {
+                exchange.getResponseHeaders().set("Retry-After", "1");
                 respond(exchange, 503, ApiJson.error("index_unavailable", "Saved index is unavailable"));
                 return;
             }
