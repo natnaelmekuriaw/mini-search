@@ -2,14 +2,22 @@ package io.github.natnaelmekuriaw.minisearch.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -117,6 +125,47 @@ class MiniSearchCliTest {
                 .err().contains("--port"));
         assertEquals(1, run("serve", "--index", directory.resolve("missing.bin").toString()).code());
         assertEquals("http://[::1]:8080", MiniSearchCli.serverUrl("::1", 8080));
+    }
+
+    @Test
+    void servesTheSavedIndexUntilInterrupted() throws Exception {
+        Path source = Files.createDirectory(directory.resolve("docs"));
+        Files.writeString(source.resolve("note.md"), "java search");
+        Path snapshot = directory.resolve("index.bin");
+        assertEquals(0, run("index", "--source", source.toString(),
+                "--index", snapshot.toString()).code());
+        int port;
+        try (ServerSocket socket = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+            port = socket.getLocalPort();
+        }
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ByteArrayOutputStream errors = new ByteArrayOutputStream();
+        AtomicInteger exitCode = new AtomicInteger(-1);
+        Thread server = Thread.ofVirtual().start(() -> exitCode.set(cli.run(
+                new String[] {"serve", "--index", snapshot.toString(), "--port", Integer.toString(port)},
+                new PrintStream(output, true, StandardCharsets.UTF_8),
+                new PrintStream(errors, true, StandardCharsets.UTF_8))));
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            URI uri = URI.create("http://127.0.0.1:" + port + "/api/v1/search?q=java");
+            HttpResponse<String> response = null;
+            for (int attempt = 0; attempt < 40 && response == null; attempt++) {
+                try {
+                    response = client.send(HttpRequest.newBuilder(uri).GET().build(),
+                            HttpResponse.BodyHandlers.ofString());
+                } catch (IOException exception) {
+                    Thread.sleep(50);
+                }
+            }
+            assertNotNull(response, errors.toString(StandardCharsets.UTF_8));
+            assertEquals(200, response.statusCode(), errors.toString(StandardCharsets.UTF_8));
+            assertTrue(response.body().contains("note.md"));
+            assertTrue(output.toString(StandardCharsets.UTF_8).contains("Serving http://127.0.0.1:"));
+        } finally {
+            server.interrupt();
+            server.join(5_000);
+        }
+        assertEquals(130, exitCode.get());
     }
 
     private Result run(String... args) {
