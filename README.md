@@ -55,6 +55,7 @@ The read-only endpoints are `GET /api/v1/health`, `GET /api/v1/index`, and
 return JSON errors with HTTP 400; unknown paths return 404, unsupported methods
 return 405, and an unavailable saved index returns 503. The HTTP service does not
 modify source documents or the saved index.
+The complete response schema is in [docs/openapi.yaml](docs/openapi.yaml).
 
 ## Index a directory
 
