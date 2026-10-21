@@ -97,6 +97,26 @@ class SearchHttpServerTest {
         }
     }
 
+    @Test
+    void reportsUnavailableSnapshotsAndRecoversAfterReplacement() throws Exception {
+        Path document = directory.resolve("note.md");
+        Path snapshot = directory.resolve("index.bin");
+        Files.writeString(document, "alpha");
+        try (SearchHttpServer server = server()) {
+            byte[] damaged = Files.readAllBytes(snapshot);
+            damaged[damaged.length - 1] ^= 1;
+            Files.write(snapshot, damaged);
+
+            HttpResponse<String> unavailable = get(server, "/api/v1/search?q=alpha");
+            assertEquals(503, unavailable.statusCode());
+            assertTrue(unavailable.body().contains("index_unavailable"));
+
+            Files.delete(snapshot);
+            new IndexRepository().refresh(directory, snapshot);
+            assertEquals(200, get(server, "/api/v1/search?q=alpha").statusCode());
+        }
+    }
+
     private SearchHttpServer server() throws IOException {
         Path snapshot = directory.resolve("index.bin");
         new IndexRepository().refresh(directory, snapshot);
