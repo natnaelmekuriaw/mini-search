@@ -190,6 +190,18 @@ class SearchHttpServerTest {
         }
     }
 
+    @Test
+    void servesEmptyIndexesWithoutSpecialCases() throws Exception {
+        try (SearchHttpServer server = server()) {
+            assertEquals("{\"documents\":0,\"terms\":0}",
+                    get(server, "/api/v1/index").body());
+            assertEquals("{\"total\":0,\"offset\":0,\"limit\":20,\"results\":[]}",
+                    get(server, "/api/v1/search?q=java").body());
+            assertEquals("{\"total\":0,\"offset\":5,\"limit\":2,\"results\":[]}",
+                    get(server, "/api/v1/search?q=java&offset=5&limit=2").body());
+        }
+    }
+
     private SearchHttpServer server() throws IOException {
         Path snapshot = directory.resolve("index.bin");
         new IndexRepository().refresh(directory, snapshot);
