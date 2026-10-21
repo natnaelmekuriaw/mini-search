@@ -172,6 +172,55 @@ class SearchServiceTest {
                 service.search("NOT (NOT java OR kotlin)").getFirst().score());
     }
 
+    @Test
+    void combinesPrefixMatchesWithBooleanQueriesPhrasesAndFilters() throws IOException {
+        write("docs/java.md", "java search engine");
+        write("docs/javascript.md", "javascript search engine");
+        write("docs/draft.md", "java search engine draft");
+        write("other.txt", "java engine search");
+        SearchService service = service();
+
+        assertEquals(Set.of("docs/java.md", "docs/javascript.md"),
+                Set.copyOf(paths(service.search("(jav* OR kotlin) \"search engine\" -draft*"
+                        + " type:md path:docs/"))));
+        assertEquals(List.of("docs/javascript.md"),
+                paths(service.search("jav* -java -draft* type:md")));
+        assertEquals(List.of(), service.search("missing*"));
+    }
+
+    @Test
+    void ranksMatchedExpandedTermsAndSuggestsSortedWords() throws IOException {
+        write("a.md", "java javascript");
+        write("b.md", "java");
+        write("c.md", "javascript");
+        SearchService service = service();
+
+        SearchResult combined = service.search("jav*").stream()
+                .filter(result -> result.path().equals("a.md")).findFirst().orElseThrow();
+        assertTrue(combined.score() > service.search("java").stream()
+                .filter(result -> result.path().equals("a.md")).findFirst().orElseThrow().score());
+        assertEquals(List.of("java", "javascript"), service.suggest("JAV", 10));
+        assertEquals(List.of("java"), service.suggest("jav", 1));
+        assertEquals(List.of(), service.suggest("missing", 10));
+        assertThrows(IllegalArgumentException.class, () -> service.suggest("ja va", 10));
+        assertThrows(IllegalArgumentException.class, () -> service.suggest("java", 21));
+    }
+
+    @Test
+    void rejectsPrefixesThatExpandBeyondTheSearchLimit() throws IOException {
+        StringBuilder content = new StringBuilder();
+        for (int value = 0; value < 64; value++) {
+            content.append("prefix").append(value).append(' ');
+        }
+        write("many.txt", content.toString());
+        assertEquals(List.of("many.txt"), paths(service().search("prefix*")));
+        content.append("prefix64");
+        write("many.txt", content.toString());
+
+        assertThrows(IllegalArgumentException.class, () -> service().search("prefix*"));
+        assertEquals(20, service().suggest("prefix", 20).size());
+    }
+
     private SearchService service() throws IOException {
         return new SearchService(new IndexBuilder().build(directory));
     }
