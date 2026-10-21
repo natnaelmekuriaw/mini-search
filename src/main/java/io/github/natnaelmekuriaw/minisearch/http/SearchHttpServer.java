@@ -44,7 +44,8 @@ public final class SearchHttpServer implements AutoCloseable {
     private void handle(HttpExchange exchange) throws IOException {
         try {
             String path = exchange.getRequestURI().getRawPath();
-            if (!Set.of("/api/v1/health", "/api/v1/index", "/api/v1/search").contains(path)) {
+            if (!Set.of("/api/v1/health", "/api/v1/index", "/api/v1/search",
+                    "/api/v1/suggest").contains(path)) {
                 respond(exchange, 404, ApiJson.error("not_found", "Unknown endpoint"));
                 return;
             }
@@ -80,6 +81,11 @@ public final class SearchHttpServer implements AutoCloseable {
                     SearchRequest request = SearchRequest.parse(rawQuery);
                     yield ApiJson.results(view.search().searchPage(request.query(),
                             request.offset(), request.limit()));
+                }
+                case "/api/v1/suggest" -> {
+                    SuggestionRequest request = SuggestionRequest.parse(rawQuery);
+                    yield ApiJson.suggestions(view.search().suggest(request.prefix(),
+                            request.limit()));
                 }
                 default -> throw new IllegalStateException("Unreachable endpoint");
             };

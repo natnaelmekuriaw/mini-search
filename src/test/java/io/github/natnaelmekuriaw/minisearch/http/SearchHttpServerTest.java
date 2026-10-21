@@ -106,6 +106,21 @@ class SearchHttpServerTest {
     }
 
     @Test
+    void servesPrefixSearchAndSuggestionsFromTheSavedIndex() throws Exception {
+        Files.writeString(directory.resolve("guide.md"), "java javascript search");
+        try (SearchHttpServer server = server()) {
+            HttpResponse<String> suggestions = get(server, "/api/v1/suggest?q=JAV&limit=2");
+            HttpResponse<String> search = get(server, "/api/v1/search?q=jav*");
+
+            assertEquals(200, suggestions.statusCode());
+            assertEquals("{\"suggestions\":[\"java\",\"javascript\"]}", suggestions.body());
+            assertTrue(search.body().contains("\"path\":\"guide.md\""));
+            assertEquals(400, get(server, "/api/v1/suggest?q=jav&limit=21").statusCode());
+            assertEquals(400, get(server, "/api/v1/search?q=*").statusCode());
+        }
+    }
+
+    @Test
     void servesTheLatestSavedIndexAfterRefresh() throws Exception {
         Path document = directory.resolve("note.md");
         Path snapshot = directory.resolve("index.bin");
@@ -118,6 +133,10 @@ class SearchHttpServerTest {
                     .contains("\"path\":\"note.md\""));
             assertTrue(get(server, "/api/v1/search?q=alpha").body()
                     .contains("\"results\":[]"));
+            assertEquals("{\"suggestions\":[\"bravo\"]}",
+                    get(server, "/api/v1/suggest?q=br").body());
+            assertEquals("{\"suggestions\":[]}",
+                    get(server, "/api/v1/suggest?q=al").body());
         }
     }
 
