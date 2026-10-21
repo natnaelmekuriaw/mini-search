@@ -176,6 +176,20 @@ class SearchHttpServerTest {
         }
     }
 
+    @Test
+    void marksResponsesAsJsonAndDisablesCachingAndSniffing() throws Exception {
+        try (SearchHttpServer server = server()) {
+            for (String path : List.of("/api/v1/health", "/api/v1/search?q=java", "/missing")) {
+                HttpResponse<String> response = get(server, path);
+                assertEquals("application/json; charset=utf-8",
+                        response.headers().firstValue("Content-Type").orElseThrow());
+                assertEquals("no-store", response.headers().firstValue("Cache-Control").orElseThrow());
+                assertEquals("nosniff",
+                        response.headers().firstValue("X-Content-Type-Options").orElseThrow());
+            }
+        }
+    }
+
     private SearchHttpServer server() throws IOException {
         Path snapshot = directory.resolve("index.bin");
         new IndexRepository().refresh(directory, snapshot);
