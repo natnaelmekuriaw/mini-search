@@ -111,7 +111,7 @@ public final class MiniSearchCli {
         if (address.isUnresolved()) {
             throw new IllegalArgumentException("Unable to resolve --host: " + host);
         }
-        try (SearchHttpServer server = new SearchHttpServer(repository.open(snapshot), address)) {
+        try (SearchHttpServer server = new SearchHttpServer(snapshot, address)) {
             server.start();
             out.printf(Locale.ROOT, "Serving http://%s:%d%n", host, server.address().getPort());
             new CountDownLatch(1).await();

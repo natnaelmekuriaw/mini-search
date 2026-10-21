@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.natnaelmekuriaw.minisearch.index.IndexBuilder;
+import io.github.natnaelmekuriaw.minisearch.index.IndexRepository;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -81,8 +81,26 @@ class SearchHttpServerTest {
         }
     }
 
+    @Test
+    void servesTheLatestSavedIndexAfterRefresh() throws Exception {
+        Path document = directory.resolve("note.md");
+        Path snapshot = directory.resolve("index.bin");
+        Files.writeString(document, "alpha");
+        try (SearchHttpServer server = server()) {
+            Files.writeString(document, "bravo");
+            new IndexRepository().refresh(directory, snapshot);
+
+            assertTrue(get(server, "/api/v1/search?q=bravo").body()
+                    .contains("\"path\":\"note.md\""));
+            assertTrue(get(server, "/api/v1/search?q=alpha").body()
+                    .contains("\"results\":[]"));
+        }
+    }
+
     private SearchHttpServer server() throws IOException {
-        SearchHttpServer server = new SearchHttpServer(new IndexBuilder().build(directory),
+        Path snapshot = directory.resolve("index.bin");
+        new IndexRepository().refresh(directory, snapshot);
+        SearchHttpServer server = new SearchHttpServer(snapshot,
                 new InetSocketAddress("127.0.0.1", 0));
         server.start();
         return server;

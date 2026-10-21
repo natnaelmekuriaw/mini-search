@@ -2,8 +2,7 @@ package io.github.natnaelmekuriaw.minisearch.http;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-import io.github.natnaelmekuriaw.minisearch.index.InMemoryIndex;
-import io.github.natnaelmekuriaw.minisearch.search.SearchService;
+import java.nio.file.Path;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -15,12 +14,10 @@ import java.util.concurrent.Executors;
 public final class SearchHttpServer implements AutoCloseable {
     private final HttpServer server;
     private final ExecutorService executor;
-    private final InMemoryIndex index;
-    private final SearchService search;
+    private final IndexSnapshotProvider snapshots;
 
-    public SearchHttpServer(InMemoryIndex index, InetSocketAddress address) throws IOException {
-        this.index = Objects.requireNonNull(index, "index");
-        this.search = new SearchService(index);
+    public SearchHttpServer(Path snapshot, InetSocketAddress address) throws IOException {
+        this.snapshots = new IndexSnapshotProvider(Objects.requireNonNull(snapshot, "snapshot"));
         this.server = HttpServer.create(Objects.requireNonNull(address, "address"), 0);
         this.executor = Executors.newVirtualThreadPerTaskExecutor();
         server.setExecutor(executor);
@@ -59,6 +56,13 @@ public final class SearchHttpServer implements AutoCloseable {
                 throw new IllegalArgumentException("GET requests must not contain a body");
             }
             String rawQuery = exchange.getRequestURI().getRawQuery();
+            IndexSnapshotProvider.View view;
+            try {
+                view = snapshots.current();
+            } catch (IOException exception) {
+                respond(exchange, 503, ApiJson.error("index_unavailable", "Saved index is unavailable"));
+                return;
+            }
             String body = switch (path) {
                 case "/api/v1/health" -> {
                     ApiParameters.parse(rawQuery, Set.of());
@@ -66,11 +70,11 @@ public final class SearchHttpServer implements AutoCloseable {
                 }
                 case "/api/v1/index" -> {
                     ApiParameters.parse(rawQuery, Set.of());
-                    yield ApiJson.index(index.documents().size(), index.termCount());
+                    yield ApiJson.index(view.index().documents().size(), view.index().termCount());
                 }
                 case "/api/v1/search" -> {
                     SearchRequest request = SearchRequest.parse(rawQuery);
-                    yield ApiJson.results(search.searchPage(request.query(),
+                    yield ApiJson.results(view.search().searchPage(request.query(),
                             request.offset(), request.limit()));
                 }
                 default -> throw new IllegalStateException("Unreachable endpoint");
