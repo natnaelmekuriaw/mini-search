@@ -50,6 +50,21 @@ class SearchHttpServerTest {
         }
     }
 
+    @Test
+    void rejectsBodiesOnGetRequests() throws Exception {
+        try (SearchHttpServer server = server()) {
+            HttpRequest request = HttpRequest.newBuilder(uri(server, "/api/v1/health"))
+                    .method("GET", HttpRequest.BodyPublishers.ofString("unexpected"))
+                    .build();
+
+            HttpResponse<String> response = HttpClient.newHttpClient()
+                    .send(request, HttpResponse.BodyHandlers.ofString());
+
+            assertEquals(400, response.statusCode());
+            assertTrue(response.body().contains("must not contain a body"));
+        }
+    }
+
     private SearchHttpServer server() throws IOException {
         SearchHttpServer server = new SearchHttpServer(new IndexBuilder().build(directory),
                 new InetSocketAddress("127.0.0.1", 0));

@@ -53,6 +53,11 @@ public final class SearchHttpServer implements AutoCloseable {
                 respond(exchange, 405, ApiJson.error("method_not_allowed", "Use GET"));
                 return;
             }
+            String contentLength = exchange.getRequestHeaders().getFirst("Content-Length");
+            if ((contentLength != null && !contentLength.equals("0"))
+                    || exchange.getRequestHeaders().containsKey("Transfer-Encoding")) {
+                throw new IllegalArgumentException("GET requests must not contain a body");
+            }
             String rawQuery = exchange.getRequestURI().getRawQuery();
             String body = switch (path) {
                 case "/api/v1/health" -> {
