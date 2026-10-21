@@ -23,6 +23,14 @@ public final class Tokenizer {
         return List.copyOf(tokens);
     }
 
+    public String normalizeWord(String word) {
+        Objects.requireNonNull(word, "word");
+        if (!WORD.matcher(word).matches()) {
+            throw new IllegalArgumentException("Expected one searchable word");
+        }
+        return normalize(word);
+    }
+
     public Optional<TokenSpan> firstMatch(String text, Set<String> terms) {
         Objects.requireNonNull(text, "text");
         Objects.requireNonNull(terms, "terms");

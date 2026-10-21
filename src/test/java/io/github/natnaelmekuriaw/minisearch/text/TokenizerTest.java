@@ -21,6 +21,8 @@ class TokenizerTest {
     void normalizesUnicodeAndCaseWithoutDependingOnDefaultLocale() {
         assertEquals(List.of(new Token("café", 0), new Token("hello", 1)),
                 tokenizer.tokenize("CAFE\u0301 ＨＥＬＬＯ"));
+        assertEquals("café", tokenizer.normalizeWord("CAFE\u0301"));
+        assertThrows(IllegalArgumentException.class, () -> tokenizer.normalizeWord("café!"));
     }
 
     @Test

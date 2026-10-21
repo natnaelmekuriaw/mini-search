@@ -32,6 +32,11 @@ class IndexBuilderTest {
                 new Posting("b.md", List.of(1))), index.postings("search"));
         assertEquals(3, index.termCount());
         assertEquals("Java search Java", index.content("b.md").orElseThrow());
+        assertEquals(List.of("java"), index.termsStartingWith("JA", 10));
+        assertEquals(List.of("search"), index.termsStartingWith("s", 1));
+        assertEquals(List.of(), index.termsStartingWith("missing", 10));
+        assertThrows(IllegalArgumentException.class, () -> index.termsStartingWith("ja va", 10));
+        assertThrows(IllegalArgumentException.class, () -> index.termsStartingWith("ja", 0));
     }
 
     @Test
