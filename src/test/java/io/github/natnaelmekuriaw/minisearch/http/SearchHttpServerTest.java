@@ -163,6 +163,19 @@ class SearchHttpServerTest {
         }
     }
 
+    @Test
+    void validatesMalformedAndRepeatedHttpParameters() throws Exception {
+        try (SearchHttpServer server = server()) {
+            for (String query : List.of("q=%C3%28", "q=java&q=search",
+                    "q=java&unknown=x", "q=java&offset=-1", "q=java&limit=101")) {
+                HttpResponse<String> response = get(server, "/api/v1/search?" + query);
+                assertEquals(400, response.statusCode(), query);
+                assertTrue(response.body().contains("\"code\":\"bad_request\""), query);
+            }
+            assertEquals(400, get(server, "/api/v1/health?unexpected=1").statusCode());
+        }
+    }
+
     private SearchHttpServer server() throws IOException {
         Path snapshot = directory.resolve("index.bin");
         new IndexRepository().refresh(directory, snapshot);
