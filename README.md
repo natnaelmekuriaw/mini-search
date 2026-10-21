@@ -27,6 +27,7 @@ After verification, run the executable JAR from PowerShell:
 ```powershell
 java -jar target/minisearch-0.1.0-SNAPSHOT.jar index --source documents --index search-index.bin
 java -jar target/minisearch-0.1.0-SNAPSHOT.jar search --index search-index.bin --query 'java "search engine" type:md' --limit 10
+java -jar target/minisearch-0.1.0-SNAPSHOT.jar suggest --index search-index.bin --prefix jav --limit 10
 ```
 
 Run `java -jar target/minisearch-0.1.0-SNAPSHOT.jar --help` for usage. `index`
@@ -34,6 +35,7 @@ creates or refreshes the snapshot and reports added, changed, removed, and uncha
 document counts. `search` reads the saved snapshot and prints ranked paths, scores,
 and snippets. It defaults to 20 results. Command errors return exit code 2 for
 invalid arguments or queries and 1 for file errors.
+`suggest` prints matching indexed terms in lexicographic order, one per line.
 
 ## HTTP API
 
@@ -42,19 +44,22 @@ Start the server after creating an index:
 ```powershell
 java -jar target/minisearch-0.1.0-SNAPSHOT.jar serve --index search-index.bin
 Invoke-RestMethod 'http://127.0.0.1:8080/api/v1/search?q=java&limit=10'
+Invoke-RestMethod 'http://127.0.0.1:8080/api/v1/suggest?q=jav&limit=10'
 ```
 
 The server binds to `127.0.0.1:8080` by default. `--host` and `--port` override
 those values. Stop it with Ctrl+C. It detects snapshots replaced by the `index`
 command and loads the new version on the next request.
 
-The read-only endpoints are `GET /api/v1/health`, `GET /api/v1/index`, and
-`GET /api/v1/search`. Search requires `q` and accepts `offset` (default `0`) and
+The read-only endpoints are `GET /api/v1/health`, `GET /api/v1/index`,
+`GET /api/v1/search`, and `GET /api/v1/suggest`. Search requires `q` and accepts `offset` (default `0`) and
 `limit` (default `20`, maximum `100`). Its JSON response contains `total`, `offset`,
 `limit`, and ranked `results` with `path`, `score`, and `snippet`. Invalid requests
 return JSON errors with HTTP 400; unknown paths return 404, unsupported methods
 return 405, and an unavailable saved index returns 503. The HTTP service does not
 modify source documents or the saved index.
+Suggestions require a single-word `q`, accept `limit` (default `10`, maximum
+`20`), and return matching terms in lexicographic order.
 The complete response schema is in [docs/openapi.yaml](docs/openapi.yaml).
 
 ## Index a directory
@@ -96,6 +101,14 @@ terms contribute to the score once. BM25 uses `k1 = 1.2`, `b = 0.75`, and docume
 lengths measured in tokens. Quoted phrases restrict matches but receive no extra
 score. Only terms in matching positive branches contribute to score and snippets.
 Escaping and highlighting are not supported yet.
+
+Append `*` to a single word to match indexed terms with that prefix, such as
+`jav*`. Prefixes can be used with Boolean operators, phrases, and filters.
+Wildcards inside quoted phrases are not supported.
+Matches rank using BM25 scores for the actual terms found in each document.
+A search prefix matching more than 64 indexed terms is rejected; use a longer
+prefix or the suggestion command to narrow it. Suggestions and prefix queries
+use the same Unicode normalization as indexing.
 
 The scanner recursively includes `.txt` and `.md` files, regardless of extension
 case. It reads Markdown as source text, uses paths relative to the selected root,

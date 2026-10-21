@@ -182,6 +182,9 @@ public final class QueryParser {
             }
             String token = tokens.get(cursor++);
             if (token.startsWith("\"")) {
+                if (token.indexOf('*') >= 0) {
+                    throw new IllegalArgumentException("Wildcard is not supported inside phrases");
+                }
                 List<String> terms = tokenizer.tokenize(token.substring(1, token.length() - 1))
                         .stream().map(Token::term).toList();
                 if (terms.isEmpty()) {
@@ -191,6 +194,13 @@ public final class QueryParser {
             }
             if (token.indexOf(':') >= 0) {
                 throw new IllegalArgumentException("Unknown query filter: " + token);
+            }
+            if (token.indexOf('*') >= 0) {
+                if (!token.endsWith("*") || token.indexOf('*') != token.length() - 1) {
+                    throw new IllegalArgumentException("Wildcard must follow one word");
+                }
+                String prefix = tokenizer.normalizeWord(token.substring(0, token.length() - 1));
+                return new QueryExpression.Clause(new PrefixClause(prefix));
             }
             List<QueryExpression> terms = tokenizer.tokenize(token).stream()
                     .map(Token::term).map(TermClause::new)

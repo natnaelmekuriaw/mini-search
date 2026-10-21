@@ -87,6 +87,27 @@ class MiniSearchCliTest {
     }
 
     @Test
+    void suggestsTermsAndSearchesPrefixesFromSavedSnapshots() throws IOException {
+        Path source = Files.createDirectory(directory.resolve("docs"));
+        Files.writeString(source.resolve("guide.md"), "java javascript search");
+        Path snapshot = directory.resolve("index.bin");
+        assertEquals(0, run("index", "--source", source.toString(),
+                "--index", snapshot.toString()).code());
+
+        Result suggestions = run("suggest", "--index", snapshot.toString(),
+                "--prefix", "JAV", "--limit", "2");
+        Result search = run("search", "--index", snapshot.toString(), "--query", "jav*");
+
+        assertEquals(0, suggestions.code());
+        assertEquals("java" + System.lineSeparator() + "javascript" + System.lineSeparator(),
+                suggestions.out());
+        assertEquals(0, search.code());
+        assertTrue(search.out().contains("guide.md"));
+        assertEquals(2, run("suggest", "--index", snapshot.toString(),
+                "--prefix", "jav", "--limit", "21").code());
+    }
+
+    @Test
     void printsHelpAndRejectsInvalidOptions() {
         assertEquals(0, run("--help").code());
         assertTrue(run("--help").out().contains("<jar-file> search"));

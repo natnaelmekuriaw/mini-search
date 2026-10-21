@@ -45,7 +45,7 @@ paths:
             type: string
             minLength: 1
             maxLength: 4096
-          description: Terms, phrases, AND, OR, exclusions, groups, and type or path filters.
+          description: Terms, suffix-star prefixes, phrases, AND, OR, exclusions, groups, and type or path filters. A prefix can expand to at most 64 indexed terms.
         - name: offset
           in: query
           schema:
@@ -66,6 +66,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SearchPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          $ref: '#/components/responses/IndexUnavailable'
+  /api/v1/suggest:
+    get:
+      summary: Suggest indexed terms by prefix
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+          description: A single word prefix.
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 10
+      responses:
+        '200':
+          description: Matching terms in lexicographic order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Suggestions'
         '400':
           $ref: '#/components/responses/BadRequest'
         '503':
@@ -118,6 +148,14 @@ components:
           minimum: 0
         snippet:
           type: string
+    Suggestions:
+      type: object
+      required: [suggestions]
+      properties:
+        suggestions:
+          type: array
+          items:
+            type: string
     ErrorResponse:
       type: object
       required: [error]

@@ -2,6 +2,7 @@ package io.github.natnaelmekuriaw.minisearch.http;
 
 import io.github.natnaelmekuriaw.minisearch.search.SearchPage;
 import io.github.natnaelmekuriaw.minisearch.search.SearchResult;
+import java.util.List;
 import java.util.Objects;
 
 final class ApiJson {
@@ -31,6 +32,18 @@ final class ApiJson {
     static String error(String code, String message) {
         return "{\"error\":{\"code\":" + JsonStrings.quote(code)
                 + ",\"message\":" + JsonStrings.quote(message) + "}}";
+    }
+
+    static String suggestions(List<String> suggestions) {
+        Objects.requireNonNull(suggestions, "suggestions");
+        StringBuilder json = new StringBuilder("{\"suggestions\":[");
+        for (int position = 0; position < suggestions.size(); position++) {
+            if (position > 0) {
+                json.append(',');
+            }
+            json.append(JsonStrings.quote(suggestions.get(position)));
+        }
+        return json.append("]}").toString();
     }
 
     static String index(int documents, int terms) {

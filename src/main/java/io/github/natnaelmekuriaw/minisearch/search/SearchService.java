@@ -17,6 +17,8 @@ import java.util.Set;
 
 public final class SearchService {
     private static final int DEFAULT_LIMIT = 20;
+    private static final int MAX_PREFIX_EXPANSIONS = 64;
+    private static final int MAX_SUGGESTIONS = 20;
 
     private final InMemoryIndex index;
     private final Map<String, IndexedDocument> documents;
@@ -46,6 +48,13 @@ public final class SearchService {
         return searchPage(input, 0, limit).results();
     }
 
+    public List<String> suggest(String prefix, int limit) {
+        if (limit < 1 || limit > MAX_SUGGESTIONS) {
+            throw new IllegalArgumentException("limit must be between 1 and " + MAX_SUGGESTIONS);
+        }
+        return index.termsStartingWith(prefix, limit);
+    }
+
     public SearchPage searchPage(String input, int offset, int limit) {
         if (limit < 1) {
             throw new IllegalArgumentException("limit must be positive");
@@ -59,13 +68,25 @@ public final class SearchService {
         }
 
         Set<String> terms = new LinkedHashSet<>();
+        Map<String, List<String>> expansions = new HashMap<>();
         for (SearchClause clause : query.clauses()) {
-            terms.addAll(clause.terms());
+            if (clause instanceof PrefixClause prefix) {
+                List<String> matches = index.termsStartingWith(prefix.prefix(),
+                        MAX_PREFIX_EXPANSIONS + 1);
+                if (matches.size() > MAX_PREFIX_EXPANSIONS) {
+                    throw new IllegalArgumentException("Prefix matches more than "
+                            + MAX_PREFIX_EXPANSIONS + " terms: " + prefix.prefix());
+                }
+                expansions.put(prefix.prefix(), matches);
+                terms.addAll(matches);
+            } else {
+                terms.addAll(clause.terms());
+            }
         }
         Map<String, Map<String, Posting>> byTerm = loadPostings(terms);
         Set<String> candidates = query.expression().isEmpty()
                 ? new HashSet<>(documents.keySet())
-                : candidates(query.expression().orElseThrow(), byTerm);
+                : candidates(query.expression().orElseThrow(), byTerm, expansions);
         if (candidates.isEmpty()) {
             return new SearchPage(List.of(), 0, offset, limit);
         }
@@ -76,7 +97,8 @@ public final class SearchService {
                 continue;
             }
             Set<String> matchedTerms = query.expression().isEmpty() ? Set.of()
-                    : matchingTerms(query.expression().orElseThrow(), path, byTerm, false)
+                    : matchingTerms(query.expression().orElseThrow(), path, byTerm,
+                            expansions, false)
                             .orElseThrow();
             double score = 0;
             for (String term : matchedTerms) {
@@ -112,16 +134,17 @@ public final class SearchService {
     }
 
     private Set<String> candidates(QueryExpression expression,
-                                   Map<String, Map<String, Posting>> byTerm) {
+                                   Map<String, Map<String, Posting>> byTerm,
+                                   Map<String, List<String>> expansions) {
         return switch (expression) {
-            case QueryExpression.Clause leaf -> clauseCandidates(leaf.value(), byTerm);
+            case QueryExpression.Clause leaf -> clauseCandidates(leaf.value(), byTerm, expansions);
             case QueryExpression.And and -> {
                 Set<String> paths = null;
                 for (QueryExpression child : and.children()) {
                     if (paths == null) {
-                        paths = candidates(child, byTerm);
+                        paths = candidates(child, byTerm, expansions);
                     } else {
-                        paths.retainAll(candidates(child, byTerm));
+                        paths.retainAll(candidates(child, byTerm, expansions));
                     }
                     if (paths.isEmpty()) {
                         break;
@@ -132,20 +155,28 @@ public final class SearchService {
             case QueryExpression.Or or -> {
                 Set<String> paths = new HashSet<>();
                 for (QueryExpression child : or.children()) {
-                    paths.addAll(candidates(child, byTerm));
+                    paths.addAll(candidates(child, byTerm, expansions));
                 }
                 yield paths;
             }
             case QueryExpression.Not not -> {
                 Set<String> paths = new HashSet<>(documents.keySet());
-                paths.removeAll(candidates(not.child(), byTerm));
+                paths.removeAll(candidates(not.child(), byTerm, expansions));
                 yield paths;
             }
         };
     }
 
     private Set<String> clauseCandidates(SearchClause clause,
-                                         Map<String, Map<String, Posting>> byTerm) {
+                                         Map<String, Map<String, Posting>> byTerm,
+                                         Map<String, List<String>> expansions) {
+        if (clause instanceof PrefixClause prefix) {
+            Set<String> paths = new HashSet<>();
+            for (String term : expansions.get(prefix.prefix())) {
+                paths.addAll(byTerm.get(term).keySet());
+            }
+            return paths;
+        }
         Set<String> paths = null;
         for (String term : clause.terms()) {
             if (paths == null) {
@@ -163,26 +194,32 @@ public final class SearchService {
 
     private Optional<Set<String>> matchingTerms(QueryExpression expression, String path,
                                                  Map<String, Map<String, Posting>> byTerm,
+                                                 Map<String, List<String>> expansions,
                                                  boolean negated) {
         return switch (expression) {
-            case QueryExpression.Clause leaf -> clauseMatches(leaf.value(), path, byTerm) != negated
-                    ? Optional.of(negated ? Set.of() : Set.copyOf(leaf.value().terms()))
+            case QueryExpression.Clause leaf -> clauseMatches(leaf.value(), path,
+                    byTerm, expansions) != negated
+                    ? Optional.of(negated ? Set.of()
+                            : matchedClauseTerms(leaf.value(), path, byTerm, expansions))
                     : Optional.empty();
             case QueryExpression.And and -> combineMatches(and.children(), path, byTerm,
-                    negated, !negated);
+                    expansions, negated, !negated);
             case QueryExpression.Or or -> combineMatches(or.children(), path, byTerm,
-                    negated, negated);
-            case QueryExpression.Not not -> matchingTerms(not.child(), path, byTerm, !negated);
+                    expansions, negated, negated);
+            case QueryExpression.Not not -> matchingTerms(not.child(), path, byTerm,
+                    expansions, !negated);
         };
     }
 
     private Optional<Set<String>> combineMatches(List<QueryExpression> children, String path,
                                                    Map<String, Map<String, Posting>> byTerm,
+                                                   Map<String, List<String>> expansions,
                                                    boolean negated, boolean requireAll) {
         Set<String> terms = new LinkedHashSet<>();
         boolean anyMatch = false;
         for (QueryExpression child : children) {
-            Optional<Set<String>> match = matchingTerms(child, path, byTerm, negated);
+            Optional<Set<String>> match = matchingTerms(child, path, byTerm,
+                    expansions, negated);
             if (match.isEmpty()) {
                 if (requireAll) {
                     return Optional.empty();
@@ -196,12 +233,32 @@ public final class SearchService {
     }
 
     private boolean clauseMatches(SearchClause clause, String path,
-                                  Map<String, Map<String, Posting>> byTerm) {
+                                  Map<String, Map<String, Posting>> byTerm,
+                                  Map<String, List<String>> expansions) {
+        if (clause instanceof PrefixClause prefix) {
+            return expansions.get(prefix.prefix()).stream()
+                    .anyMatch(term -> byTerm.get(term).containsKey(path));
+        }
         if (clause.terms().stream().anyMatch(term -> !byTerm.get(term).containsKey(path))) {
             return false;
         }
         return !(clause instanceof PhraseClause phrase) || phraseMatcher.matches(phrase,
                 postingsFor(path, clause.terms(), byTerm));
+    }
+
+    private Set<String> matchedClauseTerms(SearchClause clause, String path,
+                                            Map<String, Map<String, Posting>> byTerm,
+                                            Map<String, List<String>> expansions) {
+        if (clause instanceof PrefixClause prefix) {
+            Set<String> matched = new LinkedHashSet<>();
+            for (String term : expansions.get(prefix.prefix())) {
+                if (byTerm.get(term).containsKey(path)) {
+                    matched.add(term);
+                }
+            }
+            return matched;
+        }
+        return Set.copyOf(clause.terms());
     }
 
     private Map<String, Posting> postingsFor(String path, List<String> terms,

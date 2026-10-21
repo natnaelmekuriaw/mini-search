@@ -24,5 +24,8 @@ class ApiJsonTest {
                 ApiJson.error("bad_request", "bad \"query\""));
         assertEquals("{\"documents\":2,\"terms\":5}", ApiJson.index(2, 5));
         assertEquals("{\"status\":\"ok\"}", ApiJson.health());
+        assertEquals("{\"suggestions\":[\"java\",\"java\\\"script\"]}",
+                ApiJson.suggestions(List.of("java", "java\"script")));
+        assertEquals("{\"suggestions\":[]}", ApiJson.suggestions(List.of()));
     }
 }
