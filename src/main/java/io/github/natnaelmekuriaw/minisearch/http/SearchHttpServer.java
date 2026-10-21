@@ -70,7 +70,8 @@ public final class SearchHttpServer implements AutoCloseable {
                 }
                 case "/api/v1/search" -> {
                     SearchRequest request = SearchRequest.parse(rawQuery);
-                    yield ApiJson.results(search.search(request.query(), request.limit()));
+                    yield ApiJson.results(search.searchPage(request.query(),
+                            request.offset(), request.limit()));
                 }
                 default -> throw new IllegalStateException("Unreachable endpoint");
             };

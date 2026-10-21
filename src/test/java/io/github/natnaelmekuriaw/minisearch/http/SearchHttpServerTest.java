@@ -1,6 +1,7 @@
 package io.github.natnaelmekuriaw.minisearch.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.natnaelmekuriaw.minisearch.index.IndexBuilder;
@@ -62,6 +63,21 @@ class SearchHttpServerTest {
 
             assertEquals(400, response.statusCode());
             assertTrue(response.body().contains("must not contain a body"));
+        }
+    }
+
+    @Test
+    void pagesSearchResultsInStableOrder() throws Exception {
+        Files.writeString(directory.resolve("a.md"), "java");
+        Files.writeString(directory.resolve("b.md"), "java");
+        try (SearchHttpServer server = server()) {
+            HttpResponse<String> response = get(server, "/api/v1/search?q=java&offset=1&limit=1");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"total\":2"));
+            assertTrue(response.body().contains("\"offset\":1"));
+            assertTrue(response.body().contains("\"path\":\"b.md\""));
+            assertFalse(response.body().contains("\"path\":\"a.md\""));
         }
     }
 

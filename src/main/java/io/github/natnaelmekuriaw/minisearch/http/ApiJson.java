@@ -1,16 +1,20 @@
 package io.github.natnaelmekuriaw.minisearch.http;
 
+import io.github.natnaelmekuriaw.minisearch.search.SearchPage;
 import io.github.natnaelmekuriaw.minisearch.search.SearchResult;
-import java.util.List;
 import java.util.Objects;
 
 final class ApiJson {
     private ApiJson() {
     }
 
-    static String results(List<SearchResult> results) {
-        Objects.requireNonNull(results, "results");
-        StringBuilder json = new StringBuilder("{\"results\":[");
+    static String results(SearchPage page) {
+        Objects.requireNonNull(page, "page");
+        StringBuilder json = new StringBuilder("{\"total\":").append(page.totalMatches())
+                .append(",\"offset\":").append(page.offset())
+                .append(",\"limit\":").append(page.limit())
+                .append(",\"results\":[");
+        var results = page.results();
         for (int position = 0; position < results.size(); position++) {
             if (position > 0) {
                 json.append(',');

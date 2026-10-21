@@ -3,17 +3,19 @@ package io.github.natnaelmekuriaw.minisearch.http;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.github.natnaelmekuriaw.minisearch.search.SearchResult;
+import io.github.natnaelmekuriaw.minisearch.search.SearchPage;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class ApiJsonTest {
     @Test
     void serializesRankedResultsAndEscapesContent() {
-        assertEquals("{\"results\":[{\"path\":\"a.md\",\"score\":1.5,\"snippet\":\"say \\\"hi\\\"\"},"
+        assertEquals("{\"total\":2,\"offset\":0,\"limit\":20,\"results\":[{\"path\":\"a.md\",\"score\":1.5,\"snippet\":\"say \\\"hi\\\"\"},"
                         + "{\"path\":\"b.txt\",\"score\":0.0,\"snippet\":\"\"}]}",
-                ApiJson.results(List.of(new SearchResult("a.md", 1.5, "say \"hi\""),
-                        new SearchResult("b.txt", 0, ""))));
-        assertEquals("{\"results\":[]}", ApiJson.results(List.of()));
+                ApiJson.results(new SearchPage(List.of(new SearchResult("a.md", 1.5, "say \"hi\""),
+                        new SearchResult("b.txt", 0, "")), 2, 0, 20)));
+        assertEquals("{\"total\":0,\"offset\":0,\"limit\":20,\"results\":[]}",
+                ApiJson.results(new SearchPage(List.of(), 0, 0, 20)));
     }
 
     @Test

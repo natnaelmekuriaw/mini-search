@@ -8,8 +8,9 @@ import org.junit.jupiter.api.Test;
 class SearchRequestTest {
     @Test
     void appliesDefaultAndExplicitLimits() {
-        assertEquals(new SearchRequest("java search", 20), SearchRequest.parse("q=java+search"));
-        assertEquals(new SearchRequest("java", 100), SearchRequest.parse("q=java&limit=100"));
+        assertEquals(new SearchRequest("java search", 0, 20), SearchRequest.parse("q=java+search"));
+        assertEquals(new SearchRequest("java", 2, 100),
+                SearchRequest.parse("q=java&offset=2&limit=100"));
     }
 
     @Test
@@ -19,6 +20,8 @@ class SearchRequestTest {
         assertThrows(IllegalArgumentException.class, () -> SearchRequest.parse("q=java&limit=0"));
         assertThrows(IllegalArgumentException.class, () -> SearchRequest.parse("q=java&limit=101"));
         assertThrows(IllegalArgumentException.class, () -> SearchRequest.parse("q=java&limit=abc"));
+        assertThrows(IllegalArgumentException.class, () -> SearchRequest.parse("q=java&offset=-1"));
+        assertThrows(IllegalArgumentException.class, () -> SearchRequest.parse("q=java&offset=abc"));
         assertThrows(IllegalArgumentException.class,
                 () -> SearchRequest.parse("q=" + "a".repeat(4_097)));
     }
