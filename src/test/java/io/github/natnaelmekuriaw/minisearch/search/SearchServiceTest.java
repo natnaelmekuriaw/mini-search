@@ -116,6 +116,22 @@ class SearchServiceTest {
         assertThrows(IllegalArgumentException.class, () -> service().search("java", 0));
     }
 
+    @Test
+    void pagesResultsAndRetainsTheTotalMatchCount() throws IOException {
+        write("a.txt", "java");
+        write("b.txt", "java");
+        write("c.txt", "java");
+        SearchService service = service();
+
+        SearchPage page = service.searchPage("java", 1, 1);
+
+        assertEquals(3, page.totalMatches());
+        assertEquals(1, page.offset());
+        assertEquals(List.of("b.txt"), paths(page.results()));
+        assertEquals(List.of(), service.searchPage("java", 10, 1).results());
+        assertThrows(IllegalArgumentException.class, () -> service.searchPage("java", -1, 1));
+    }
+
     private SearchService service() throws IOException {
         return new SearchService(new IndexBuilder().build(directory));
     }

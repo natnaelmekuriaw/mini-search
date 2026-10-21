@@ -42,12 +42,19 @@ public final class SearchService {
     }
 
     public List<SearchResult> search(String input, int limit) {
+        return searchPage(input, 0, limit).results();
+    }
+
+    public SearchPage searchPage(String input, int offset, int limit) {
         if (limit < 1) {
             throw new IllegalArgumentException("limit must be positive");
         }
+        if (offset < 0) {
+            throw new IllegalArgumentException("offset must be nonnegative");
+        }
         SearchQuery query = parser.parse(input);
         if (query.isEmpty() || documents.isEmpty()) {
-            return List.of();
+            return new SearchPage(List.of(), 0, offset, limit);
         }
 
         Set<String> terms = new LinkedHashSet<>();
@@ -57,7 +64,7 @@ public final class SearchService {
         Map<String, Map<String, Posting>> byTerm = loadPostings(terms);
         Set<String> candidates = candidates(byTerm);
         if (candidates.isEmpty()) {
-            return List.of();
+            return new SearchPage(List.of(), 0, offset, limit);
         }
 
         List<ScoredPath> matches = new ArrayList<>();
@@ -84,13 +91,13 @@ public final class SearchService {
         matches.sort(Comparator.comparingDouble(ScoredPath::score).reversed()
                 .thenComparing(ScoredPath::path));
         List<SearchResult> results = new ArrayList<>();
-        for (int position = 0; position < Math.min(limit, matches.size()); position++) {
+        for (int position = offset; position < Math.min((long) offset + limit, matches.size()); position++) {
             ScoredPath match = matches.get(position);
             String content = index.content(match.path()).orElseThrow();
             results.add(new SearchResult(match.path(), match.score(),
                     snippetBuilder.build(content, terms)));
         }
-        return List.copyOf(results);
+        return new SearchPage(results, matches.size(), offset, limit);
     }
 
     private Map<String, Map<String, Posting>> loadPostings(Set<String> terms) {
