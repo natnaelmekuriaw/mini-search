@@ -166,6 +166,10 @@ class SearchServiceTest {
         assertEquals(0, service.search("-kotlin").getFirst().score());
         assertEquals(1, service.searchPage("java OR kotlin", 1, 1).results().size());
         assertEquals(2, service.searchPage("java OR kotlin", 1, 1).totalMatches());
+        assertEquals(service.search("java").getFirst().score(),
+                service.search("NOT NOT java").getFirst().score());
+        assertEquals(service.search("java").getFirst().score(),
+                service.search("NOT (NOT java OR kotlin)").getFirst().score());
     }
 
     private SearchService service() throws IOException {

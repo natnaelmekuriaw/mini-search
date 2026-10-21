@@ -76,7 +76,8 @@ public final class SearchService {
                 continue;
             }
             Set<String> matchedTerms = query.expression().isEmpty() ? Set.of()
-                    : matchingTerms(query.expression().orElseThrow(), path, byTerm).orElseThrow();
+                    : matchingTerms(query.expression().orElseThrow(), path, byTerm, false)
+                            .orElseThrow();
             double score = 0;
             for (String term : matchedTerms) {
                 score += scorer.score(documents.size(), byTerm.get(term).size(),
@@ -161,38 +162,37 @@ public final class SearchService {
     }
 
     private Optional<Set<String>> matchingTerms(QueryExpression expression, String path,
-                                                 Map<String, Map<String, Posting>> byTerm) {
+                                                 Map<String, Map<String, Posting>> byTerm,
+                                                 boolean negated) {
         return switch (expression) {
-            case QueryExpression.Clause leaf -> clauseMatches(leaf.value(), path, byTerm)
-                    ? Optional.of(Set.copyOf(leaf.value().terms())) : Optional.empty();
-            case QueryExpression.And and -> {
-                Set<String> terms = new LinkedHashSet<>();
-                boolean allMatch = true;
-                for (QueryExpression child : and.children()) {
-                    Optional<Set<String>> match = matchingTerms(child, path, byTerm);
-                    if (match.isEmpty()) {
-                        allMatch = false;
-                        break;
-                    }
-                    terms.addAll(match.orElseThrow());
-                }
-                yield allMatch ? Optional.of(terms) : Optional.empty();
-            }
-            case QueryExpression.Or or -> {
-                Set<String> terms = new LinkedHashSet<>();
-                boolean anyMatch = false;
-                for (QueryExpression child : or.children()) {
-                    Optional<Set<String>> match = matchingTerms(child, path, byTerm);
-                    if (match.isPresent()) {
-                        anyMatch = true;
-                        terms.addAll(match.orElseThrow());
-                    }
-                }
-                yield anyMatch ? Optional.of(terms) : Optional.empty();
-            }
-            case QueryExpression.Not not -> matchingTerms(not.child(), path, byTerm).isEmpty()
-                    ? Optional.of(Set.of()) : Optional.empty();
+            case QueryExpression.Clause leaf -> clauseMatches(leaf.value(), path, byTerm) != negated
+                    ? Optional.of(negated ? Set.of() : Set.copyOf(leaf.value().terms()))
+                    : Optional.empty();
+            case QueryExpression.And and -> combineMatches(and.children(), path, byTerm,
+                    negated, !negated);
+            case QueryExpression.Or or -> combineMatches(or.children(), path, byTerm,
+                    negated, negated);
+            case QueryExpression.Not not -> matchingTerms(not.child(), path, byTerm, !negated);
         };
+    }
+
+    private Optional<Set<String>> combineMatches(List<QueryExpression> children, String path,
+                                                   Map<String, Map<String, Posting>> byTerm,
+                                                   boolean negated, boolean requireAll) {
+        Set<String> terms = new LinkedHashSet<>();
+        boolean anyMatch = false;
+        for (QueryExpression child : children) {
+            Optional<Set<String>> match = matchingTerms(child, path, byTerm, negated);
+            if (match.isEmpty()) {
+                if (requireAll) {
+                    return Optional.empty();
+                }
+            } else {
+                anyMatch = true;
+                terms.addAll(match.orElseThrow());
+            }
+        }
+        return requireAll || anyMatch ? Optional.of(terms) : Optional.empty();
     }
 
     private boolean clauseMatches(SearchClause clause, String path,

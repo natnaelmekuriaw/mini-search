@@ -86,7 +86,8 @@ the phrase and excludes documents containing `draft`. Quoted terms must occur
 in order at adjacent token positions. `type:md` and `type:txt` restrict the file extension; `path:notes/`
 restricts relative paths by prefix. Each filter can appear once. Path matching is
 case-sensitive, while file extensions are case-insensitive. Filters apply to the
-whole query, including grouped alternatives. A filter-only query
+whole query, including grouped alternatives, so they must appear outside
+parentheses and cannot be negated. A filter-only query
 returns matching documents with score zero; an empty query returns no results.
 
 Results contain the relative path, BM25 score, and a short plain-text snippet near
