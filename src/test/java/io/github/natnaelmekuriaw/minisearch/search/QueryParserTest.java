@@ -65,6 +65,21 @@ class QueryParserTest {
     }
 
     @Test
+    void parsesNormalizedPrefixTermsInBooleanExpressions() {
+        SearchQuery query = parser.parse("(CAFE\u0301* OR java) -draft*");
+
+        assertEquals(new QueryExpression.And(List.of(
+                new QueryExpression.Or(List.of(
+                        new QueryExpression.Clause(new PrefixClause("café")),
+                        new QueryExpression.Clause(new TermClause("java")))),
+                new QueryExpression.Not(new QueryExpression.Clause(new PrefixClause("draft"))))),
+                query.expression().orElseThrow());
+        for (String input : List.of("*", "java**", "ja*va", "java-*", "\"jav* search\"")) {
+            assertThrows(IllegalArgumentException.class, () -> parser.parse(input), input);
+        }
+    }
+
+    @Test
     void rejectsIncompleteBooleanExpressions() {
         for (String input : List.of("OR java", "java OR", "java AND", "()", "(java",
                 "java)", "java OR ()", "-", "java NOT", "java OR AND kotlin",
