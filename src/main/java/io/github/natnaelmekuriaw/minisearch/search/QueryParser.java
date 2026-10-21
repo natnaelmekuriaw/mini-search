@@ -18,8 +18,21 @@ public final class QueryParser {
         List<String> expressionTokens = new ArrayList<>();
         String fileType = null;
         String pathPrefix = null;
+        int groupDepth = 0;
         for (String token : tokens) {
             String lower = token.toLowerCase(Locale.ROOT);
+            if (token.equals("(")) {
+                groupDepth++;
+            } else if (token.equals(")")) {
+                groupDepth--;
+            }
+            boolean filter = lower.startsWith("type:") || lower.startsWith("path:");
+            boolean followsNegation = !expressionTokens.isEmpty()
+                    && (expressionTokens.getLast().equals("-")
+                    || expressionTokens.getLast().equalsIgnoreCase("NOT"));
+            if (filter && (groupDepth > 0 || followsNegation)) {
+                throw new IllegalArgumentException("Filters cannot be negated or placed in groups");
+            }
             if (lower.startsWith("type:")) {
                 if (fileType != null) {
                     throw new IllegalArgumentException("Only one type filter is allowed");

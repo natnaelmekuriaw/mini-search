@@ -67,7 +67,8 @@ class QueryParserTest {
     @Test
     void rejectsIncompleteBooleanExpressions() {
         for (String input : List.of("OR java", "java OR", "java AND", "()", "(java",
-                "java)", "java OR ()", "-", "java NOT", "java OR AND kotlin")) {
+                "java)", "java OR ()", "-", "java NOT", "java OR AND kotlin",
+                "-type:md java", "NOT path:notes/ java", "(java type:md)")) {
             assertThrows(IllegalArgumentException.class, () -> parser.parse(input), input);
         }
         assertThrows(IllegalArgumentException.class,
