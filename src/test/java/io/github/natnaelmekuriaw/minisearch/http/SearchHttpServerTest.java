@@ -15,6 +15,9 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -134,6 +137,29 @@ class SearchHttpServerTest {
             assertTrue(response.body().contains("\"total\":1"));
             assertTrue(response.body().contains("\"path\":\"docs/guide.md\""));
             assertTrue(response.body().contains("\\\"search engine\\\""));
+        }
+    }
+
+    @Test
+    void keepsConcurrentSearchesAvailableDuringSnapshotReplacement() throws Exception {
+        Path document = directory.resolve("note.md");
+        Path snapshot = directory.resolve("index.bin");
+        Files.writeString(document, "alpha");
+        try (SearchHttpServer server = server(); HttpClient client = HttpClient.newHttpClient()) {
+            List<CompletableFuture<HttpResponse<String>>> requests = new ArrayList<>();
+            for (int request = 0; request < 20; request++) {
+                HttpRequest search = HttpRequest.newBuilder(uri(server, "/api/v1/search?q=alpha"))
+                        .GET().build();
+                requests.add(client.sendAsync(search, HttpResponse.BodyHandlers.ofString()));
+            }
+            Files.writeString(document, "bravo");
+            new IndexRepository().refresh(directory, snapshot);
+
+            for (CompletableFuture<HttpResponse<String>> request : requests) {
+                assertEquals(200, request.join().statusCode());
+            }
+            assertTrue(get(server, "/api/v1/search?q=bravo").body()
+                    .contains("\"path\":\"note.md\""));
         }
     }
 
