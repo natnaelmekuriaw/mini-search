@@ -68,6 +68,25 @@ class MiniSearchCliTest {
     }
 
     @Test
+    void searchesBooleanQueriesFromSavedSnapshots() throws IOException {
+        Path source = Files.createDirectory(directory.resolve("docs"));
+        Files.writeString(source.resolve("java.md"), "java search engine");
+        Files.writeString(source.resolve("kotlin.md"), "kotlin search engine");
+        Files.writeString(source.resolve("draft.md"), "java search engine draft");
+        Path snapshot = directory.resolve("index.bin");
+        assertEquals(0, run("index", "--source", source.toString(),
+                "--index", snapshot.toString()).code());
+
+        Result searched = run("search", "--index", snapshot.toString(),
+                "--query", "(java OR kotlin) \"search engine\" -draft");
+
+        assertEquals(0, searched.code());
+        assertTrue(searched.out().contains("java.md"));
+        assertTrue(searched.out().contains("kotlin.md"));
+        assertFalse(searched.out().contains("draft.md"));
+    }
+
+    @Test
     void printsHelpAndRejectsInvalidOptions() {
         assertEquals(0, run("--help").code());
         assertTrue(run("--help").out().contains("<jar-file> search"));
