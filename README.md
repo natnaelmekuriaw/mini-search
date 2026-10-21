@@ -79,17 +79,22 @@ System.out.println(new SearchService(repository.open(Path.of("search-index.bin")
 
 ## Search queries
 
-Plain terms use AND matching. Quoted terms must occur in order at adjacent token
-positions. `type:md` and `type:txt` restrict the file extension; `path:notes/`
+Adjacent terms use AND matching. `OR` joins alternatives, parentheses group them,
+and `-` or `NOT` excludes a term, phrase, or group. Negation binds first, then
+AND, then OR. For example, `(java OR kotlin) "search engine" -draft` requires
+the phrase and excludes documents containing `draft`. Quoted terms must occur
+in order at adjacent token positions. `type:md` and `type:txt` restrict the file extension; `path:notes/`
 restricts relative paths by prefix. Each filter can appear once. Path matching is
-case-sensitive, while file extensions are case-insensitive. A filter-only query
+case-sensitive, while file extensions are case-insensitive. Filters apply to the
+whole query, including grouped alternatives. A filter-only query
 returns matching documents with score zero; an empty query returns no results.
 
 Results contain the relative path, BM25 score, and a short plain-text snippet near
 a matching term. They are sorted by descending score and then path. Repeated query
 terms contribute to the score once. BM25 uses `k1 = 1.2`, `b = 0.75`, and document
 lengths measured in tokens. Quoted phrases restrict matches but receive no extra
-score. Boolean OR, exclusions, escaping, and highlighting are not supported yet.
+score. Only terms in matching positive branches contribute to score and snippets.
+Escaping and highlighting are not supported yet.
 
 The scanner recursively includes `.txt` and `.md` files, regardless of extension
 case. It reads Markdown as source text, uses paths relative to the selected root,

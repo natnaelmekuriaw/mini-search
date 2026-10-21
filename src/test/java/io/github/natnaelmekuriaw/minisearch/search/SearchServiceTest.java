@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -130,6 +131,41 @@ class SearchServiceTest {
         assertEquals(List.of("b.txt"), paths(page.results()));
         assertEquals(List.of(), service.searchPage("java", 10, 1).results());
         assertThrows(IllegalArgumentException.class, () -> service.searchPage("java", -1, 1));
+    }
+
+    @Test
+    void appliesBooleanGroupsAndExclusionsToPhrasesAndFilters() throws IOException {
+        write("docs/java.md", "java search engine");
+        write("docs/kotlin.md", "kotlin search engine");
+        write("docs/draft.md", "java search engine draft");
+        write("docs/unrelated.md", "java engine search");
+        write("other/java.txt", "java search engine");
+        SearchService service = service();
+
+        assertEquals(Set.of("docs/java.md", "docs/kotlin.md"),
+                Set.copyOf(paths(service.search("(java OR kotlin) \"search engine\" -draft type:md path:docs/"))));
+        assertEquals(Set.of("docs/java.md", "docs/draft.md", "docs/unrelated.md", "other/java.txt"),
+                Set.copyOf(paths(service.search("java OR kotlin \"missing phrase\""))));
+        assertEquals(List.of("docs/java.md", "docs/kotlin.md", "docs/unrelated.md", "other/java.txt"),
+                paths(service.search("-(draft)")));
+        assertEquals(List.of("docs/unrelated.md"),
+                paths(service.search("java -\"search engine\" type:md path:docs/")));
+        assertEquals(Set.of("docs/java.md", "docs/unrelated.md", "other/java.txt"),
+                Set.copyOf(paths(service.search("java AND NOT (draft OR kotlin)"))));
+    }
+
+    @Test
+    void scoresOnlyMatchingPositiveBranches() throws IOException {
+        write("a.md", "java java");
+        write("b.md", "kotlin kotlin");
+        SearchService service = service();
+
+        assertEquals(service.search("java").getFirst().score(),
+                service.search("java OR kotlin").stream()
+                        .filter(result -> result.path().equals("a.md")).findFirst().orElseThrow().score());
+        assertEquals(0, service.search("-kotlin").getFirst().score());
+        assertEquals(1, service.searchPage("java OR kotlin", 1, 1).results().size());
+        assertEquals(2, service.searchPage("java OR kotlin", 1, 1).totalMatches());
     }
 
     private SearchService service() throws IOException {

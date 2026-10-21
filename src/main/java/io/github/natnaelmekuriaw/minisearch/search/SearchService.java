@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 public final class SearchService {
@@ -62,7 +63,9 @@ public final class SearchService {
             terms.addAll(clause.terms());
         }
         Map<String, Map<String, Posting>> byTerm = loadPostings(terms);
-        Set<String> candidates = candidates(byTerm);
+        Set<String> candidates = query.expression().isEmpty()
+                ? new HashSet<>(documents.keySet())
+                : candidates(query.expression().orElseThrow(), byTerm);
         if (candidates.isEmpty()) {
             return new SearchPage(List.of(), 0, offset, limit);
         }
@@ -72,20 +75,15 @@ public final class SearchService {
             if (!passesFilters(path, query)) {
                 continue;
             }
-            Map<String, Posting> documentPostings = new HashMap<>();
-            for (String term : terms) {
-                documentPostings.put(term, byTerm.get(term).get(path));
-            }
-            if (!passesPhrases(query, documentPostings)) {
-                continue;
-            }
+            Set<String> matchedTerms = query.expression().isEmpty() ? Set.of()
+                    : matchingTerms(query.expression().orElseThrow(), path, byTerm).orElseThrow();
             double score = 0;
-            for (String term : terms) {
+            for (String term : matchedTerms) {
                 score += scorer.score(documents.size(), byTerm.get(term).size(),
-                        documentPostings.get(term).frequency(),
+                        byTerm.get(term).get(path).frequency(),
                         documents.get(path).tokenCount(), averageDocumentLength);
             }
-            matches.add(new ScoredPath(path, score));
+            matches.add(new ScoredPath(path, score, matchedTerms));
         }
 
         matches.sort(Comparator.comparingDouble(ScoredPath::score).reversed()
@@ -95,7 +93,7 @@ public final class SearchService {
             ScoredPath match = matches.get(position);
             String content = index.content(match.path()).orElseThrow();
             results.add(new SearchResult(match.path(), match.score(),
-                    snippetBuilder.build(content, terms)));
+                    snippetBuilder.build(content, match.terms())));
         }
         return new SearchPage(results, matches.size(), offset, limit);
     }
@@ -112,22 +110,107 @@ public final class SearchService {
         return byTerm;
     }
 
-    private Set<String> candidates(Map<String, Map<String, Posting>> byTerm) {
-        if (byTerm.isEmpty()) {
-            return new HashSet<>(documents.keySet());
-        }
+    private Set<String> candidates(QueryExpression expression,
+                                   Map<String, Map<String, Posting>> byTerm) {
+        return switch (expression) {
+            case QueryExpression.Clause leaf -> clauseCandidates(leaf.value(), byTerm);
+            case QueryExpression.And and -> {
+                Set<String> paths = null;
+                for (QueryExpression child : and.children()) {
+                    if (paths == null) {
+                        paths = candidates(child, byTerm);
+                    } else {
+                        paths.retainAll(candidates(child, byTerm));
+                    }
+                    if (paths.isEmpty()) {
+                        break;
+                    }
+                }
+                yield paths;
+            }
+            case QueryExpression.Or or -> {
+                Set<String> paths = new HashSet<>();
+                for (QueryExpression child : or.children()) {
+                    paths.addAll(candidates(child, byTerm));
+                }
+                yield paths;
+            }
+            case QueryExpression.Not not -> {
+                Set<String> paths = new HashSet<>(documents.keySet());
+                paths.removeAll(candidates(not.child(), byTerm));
+                yield paths;
+            }
+        };
+    }
+
+    private Set<String> clauseCandidates(SearchClause clause,
+                                         Map<String, Map<String, Posting>> byTerm) {
         Set<String> paths = null;
-        for (Map<String, Posting> postings : byTerm.values()) {
+        for (String term : clause.terms()) {
             if (paths == null) {
-                paths = new HashSet<>(postings.keySet());
+                paths = new HashSet<>(byTerm.get(term).keySet());
             } else {
-                paths.retainAll(postings.keySet());
+                paths.retainAll(byTerm.get(term).keySet());
             }
-            if (paths.isEmpty()) {
-                return Set.of();
-            }
+        }
+        if (clause instanceof PhraseClause phrase) {
+            paths.removeIf(path -> !phraseMatcher.matches(phrase, postingsFor(path,
+                    clause.terms(), byTerm)));
         }
         return paths;
+    }
+
+    private Optional<Set<String>> matchingTerms(QueryExpression expression, String path,
+                                                 Map<String, Map<String, Posting>> byTerm) {
+        return switch (expression) {
+            case QueryExpression.Clause leaf -> clauseMatches(leaf.value(), path, byTerm)
+                    ? Optional.of(Set.copyOf(leaf.value().terms())) : Optional.empty();
+            case QueryExpression.And and -> {
+                Set<String> terms = new LinkedHashSet<>();
+                boolean allMatch = true;
+                for (QueryExpression child : and.children()) {
+                    Optional<Set<String>> match = matchingTerms(child, path, byTerm);
+                    if (match.isEmpty()) {
+                        allMatch = false;
+                        break;
+                    }
+                    terms.addAll(match.orElseThrow());
+                }
+                yield allMatch ? Optional.of(terms) : Optional.empty();
+            }
+            case QueryExpression.Or or -> {
+                Set<String> terms = new LinkedHashSet<>();
+                boolean anyMatch = false;
+                for (QueryExpression child : or.children()) {
+                    Optional<Set<String>> match = matchingTerms(child, path, byTerm);
+                    if (match.isPresent()) {
+                        anyMatch = true;
+                        terms.addAll(match.orElseThrow());
+                    }
+                }
+                yield anyMatch ? Optional.of(terms) : Optional.empty();
+            }
+            case QueryExpression.Not not -> matchingTerms(not.child(), path, byTerm).isEmpty()
+                    ? Optional.of(Set.of()) : Optional.empty();
+        };
+    }
+
+    private boolean clauseMatches(SearchClause clause, String path,
+                                  Map<String, Map<String, Posting>> byTerm) {
+        if (clause.terms().stream().anyMatch(term -> !byTerm.get(term).containsKey(path))) {
+            return false;
+        }
+        return !(clause instanceof PhraseClause phrase) || phraseMatcher.matches(phrase,
+                postingsFor(path, clause.terms(), byTerm));
+    }
+
+    private Map<String, Posting> postingsFor(String path, List<String> terms,
+                                             Map<String, Map<String, Posting>> byTerm) {
+        Map<String, Posting> postings = new HashMap<>();
+        for (String term : terms) {
+            postings.put(term, byTerm.get(term).get(path));
+        }
+        return postings;
     }
 
     private boolean passesFilters(String path, SearchQuery query) {
@@ -138,16 +221,6 @@ public final class SearchService {
         return query.pathPrefix().isEmpty() || path.startsWith(query.pathPrefix().orElseThrow());
     }
 
-    private boolean passesPhrases(SearchQuery query, Map<String, Posting> documentPostings) {
-        for (SearchClause clause : query.clauses()) {
-            if (clause instanceof PhraseClause phrase
-                    && !phraseMatcher.matches(phrase, documentPostings)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private record ScoredPath(String path, double score) {
+    private record ScoredPath(String path, double score, Set<String> terms) {
     }
 }

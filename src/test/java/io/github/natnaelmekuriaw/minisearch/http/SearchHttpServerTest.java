@@ -87,6 +87,25 @@ class SearchHttpServerTest {
     }
 
     @Test
+    void searchesBooleanQueriesAndRejectsMalformedGroups() throws Exception {
+        Files.writeString(directory.resolve("java.md"), "java search engine");
+        Files.writeString(directory.resolve("kotlin.md"), "kotlin search engine");
+        Files.writeString(directory.resolve("draft.md"), "java search engine draft");
+        try (SearchHttpServer server = server()) {
+            String query = URLEncoder.encode("(java OR kotlin) \"search engine\" -draft",
+                    StandardCharsets.UTF_8);
+            HttpResponse<String> response = get(server, "/api/v1/search?q=" + query);
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"total\":2"));
+            assertTrue(response.body().contains("\"path\":\"java.md\""));
+            assertTrue(response.body().contains("\"path\":\"kotlin.md\""));
+            assertFalse(response.body().contains("\"path\":\"draft.md\""));
+            assertEquals(400, get(server, "/api/v1/search?q=java+OR").statusCode());
+        }
+    }
+
+    @Test
     void servesTheLatestSavedIndexAfterRefresh() throws Exception {
         Path document = directory.resolve("note.md");
         Path snapshot = directory.resolve("index.bin");
