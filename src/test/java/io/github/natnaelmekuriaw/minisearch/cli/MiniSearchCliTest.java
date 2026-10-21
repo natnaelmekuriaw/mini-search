@@ -108,6 +108,16 @@ class MiniSearchCliTest {
         assertEquals("", invalid.out());
     }
 
+    @Test
+    void validatesServeOptionsBeforeStarting() {
+        assertTrue(run("serve", "--help").out().contains("serve --index"));
+        assertTrue(run("serve", "--index", "missing.bin", "--port", "0")
+                .err().contains("--port"));
+        assertTrue(run("serve", "--index", "missing.bin", "--port", "65536")
+                .err().contains("--port"));
+        assertEquals(1, run("serve", "--index", directory.resolve("missing.bin").toString()).code());
+    }
+
     private Result run(String... args) {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         ByteArrayOutputStream errors = new ByteArrayOutputStream();
