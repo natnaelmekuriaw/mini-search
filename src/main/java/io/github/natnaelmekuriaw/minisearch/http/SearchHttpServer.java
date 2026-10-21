@@ -10,8 +10,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public final class SearchHttpServer implements AutoCloseable {
+    private static final Logger LOGGER = Logger.getLogger(SearchHttpServer.class.getName());
     private final HttpServer server;
     private final ExecutorService executor;
     private final IndexSnapshotProvider snapshots;
@@ -82,6 +85,9 @@ public final class SearchHttpServer implements AutoCloseable {
             respond(exchange, 200, body);
         } catch (IllegalArgumentException exception) {
             respond(exchange, 400, ApiJson.error("bad_request", exception.getMessage()));
+        } catch (RuntimeException exception) {
+            LOGGER.log(Level.SEVERE, "HTTP request failed", exception);
+            respond(exchange, 500, ApiJson.error("internal_error", "Internal server error"));
         } finally {
             exchange.close();
         }
