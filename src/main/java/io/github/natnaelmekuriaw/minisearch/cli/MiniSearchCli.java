@@ -2,10 +2,12 @@ package io.github.natnaelmekuriaw.minisearch.cli;
 
 import io.github.natnaelmekuriaw.minisearch.index.IndexRepository;
 import io.github.natnaelmekuriaw.minisearch.index.IndexUpdate;
+import io.github.natnaelmekuriaw.minisearch.http.SearchHttpServer;
 import io.github.natnaelmekuriaw.minisearch.search.SearchResult;
 import io.github.natnaelmekuriaw.minisearch.search.SearchService;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
@@ -13,12 +15,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 public final class MiniSearchCli {
     private static final String USAGE = """
             Usage:
               java -jar <jar-file> index --source <directory> --index <file>
               java -jar <jar-file> search --index <file> --query <text> [--limit <number>]
+              java -jar <jar-file> serve --index <file> [--host <address>] [--port <number>]
               java -jar <jar-file> --help
             """;
 
@@ -44,7 +48,7 @@ public final class MiniSearchCli {
             return 2;
         }
         if (args.length == 2 && args[1].equals("--help")
-                && (args[0].equals("index") || args[0].equals("search"))) {
+                && (args[0].equals("index") || args[0].equals("search") || args[0].equals("serve"))) {
             out.print(USAGE);
             return 0;
         }
@@ -53,6 +57,7 @@ public final class MiniSearchCli {
             switch (args[0]) {
                 case "index" -> index(args, out);
                 case "search" -> search(args, out);
+                case "serve" -> serve(args, out);
                 default -> throw new IllegalArgumentException("Unknown command: " + args[0]);
             }
             return 0;
@@ -63,6 +68,9 @@ public final class MiniSearchCli {
         } catch (IOException exception) {
             err.println("Error: " + exception.getMessage());
             return 1;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return 130;
         }
     }
 
@@ -88,6 +96,25 @@ public final class MiniSearchCli {
             if (!result.snippet().isEmpty()) {
                 out.println("  " + result.snippet());
             }
+        }
+    }
+
+    private void serve(String[] args, PrintStream out) throws IOException, InterruptedException {
+        Map<String, String> options = parseOptions(args, Set.of("index", "host", "port"));
+        Path snapshot = Path.of(required(options, "index"));
+        String host = options.getOrDefault("host", "127.0.0.1");
+        if (host.isBlank()) {
+            throw new IllegalArgumentException("--host must not be blank");
+        }
+        int port = parsePort(options.getOrDefault("port", "8080"));
+        InetSocketAddress address = new InetSocketAddress(host, port);
+        if (address.isUnresolved()) {
+            throw new IllegalArgumentException("Unable to resolve --host: " + host);
+        }
+        try (SearchHttpServer server = new SearchHttpServer(snapshot, address)) {
+            server.start();
+            out.println("Serving " + serverUrl(host, server.address().getPort()));
+            new CountDownLatch(1).await();
         }
     }
 
@@ -127,5 +154,23 @@ public final class MiniSearchCli {
             throw new IllegalArgumentException("--limit must be a positive integer");
         }
         return limit;
+    }
+
+    private static int parsePort(String value) {
+        try {
+            int port = Integer.parseInt(value);
+            if (port >= 1 && port <= 65_535) {
+                return port;
+            }
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("--port must be between 1 and 65535", exception);
+        }
+        throw new IllegalArgumentException("--port must be between 1 and 65535");
+    }
+
+    static String serverUrl(String host, int port) {
+        String address = host.contains(":") && !(host.startsWith("[") && host.endsWith("]"))
+                ? "[" + host + "]" : host;
+        return "http://" + address + ":" + port;
     }
 }
