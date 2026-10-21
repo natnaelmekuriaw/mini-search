@@ -2,8 +2,8 @@
 
 MiniSearch is a small Java document search engine. It builds a positional inverted
 index for UTF-8 text and Markdown files and ranks query results with BM25. The index
-can be saved and refreshed through Java or the CLI. The REST API is planned
-for a later stage.
+can be saved and refreshed through Java or the CLI. A versioned HTTP API
+serves searches from the saved index.
 
 ## Requirements
 
@@ -34,6 +34,27 @@ creates or refreshes the snapshot and reports added, changed, removed, and uncha
 document counts. `search` reads the saved snapshot and prints ranked paths, scores,
 and snippets. It defaults to 20 results. Command errors return exit code 2 for
 invalid arguments or queries and 1 for file errors.
+
+## HTTP API
+
+Start the server after creating an index:
+
+```powershell
+java -jar target/minisearch-0.1.0-SNAPSHOT.jar serve --index search-index.bin
+Invoke-RestMethod 'http://127.0.0.1:8080/api/v1/search?q=java&limit=10'
+```
+
+The server binds to `127.0.0.1:8080` by default. `--host` and `--port` override
+those values. Stop it with Ctrl+C. It detects snapshots replaced by the `index`
+command and loads the new version on the next request.
+
+The read-only endpoints are `GET /api/v1/health`, `GET /api/v1/index`, and
+`GET /api/v1/search`. Search requires `q` and accepts `offset` (default `0`) and
+`limit` (default `20`, maximum `100`). Its JSON response contains `total`, `offset`,
+`limit`, and ranked `results` with `path`, `score`, and `snippet`. Invalid requests
+return JSON errors with HTTP 400; unknown paths return 404, unsupported methods
+return 405, and an unavailable saved index returns 503. The HTTP service does not
+modify source documents or the saved index.
 
 ## Index a directory
 
