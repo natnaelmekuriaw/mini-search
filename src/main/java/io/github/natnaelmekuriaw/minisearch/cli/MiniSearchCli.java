@@ -113,7 +113,7 @@ public final class MiniSearchCli {
         }
         try (SearchHttpServer server = new SearchHttpServer(snapshot, address)) {
             server.start();
-            out.printf(Locale.ROOT, "Serving http://%s:%d%n", host, server.address().getPort());
+            out.println("Serving " + serverUrl(host, server.address().getPort()));
             new CountDownLatch(1).await();
         }
     }
@@ -166,5 +166,11 @@ public final class MiniSearchCli {
             throw new IllegalArgumentException("--port must be between 1 and 65535", exception);
         }
         throw new IllegalArgumentException("--port must be between 1 and 65535");
+    }
+
+    static String serverUrl(String host, int port) {
+        String address = host.contains(":") && !(host.startsWith("[") && host.endsWith("]"))
+                ? "[" + host + "]" : host;
+        return "http://" + address + ":" + port;
     }
 }

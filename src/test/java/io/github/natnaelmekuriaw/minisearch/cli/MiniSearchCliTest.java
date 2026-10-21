@@ -116,6 +116,7 @@ class MiniSearchCliTest {
         assertTrue(run("serve", "--index", "missing.bin", "--port", "65536")
                 .err().contains("--port"));
         assertEquals(1, run("serve", "--index", directory.resolve("missing.bin").toString()).code());
+        assertEquals("http://[::1]:8080", MiniSearchCli.serverUrl("::1", 8080));
     }
 
     private Result run(String... args) {
