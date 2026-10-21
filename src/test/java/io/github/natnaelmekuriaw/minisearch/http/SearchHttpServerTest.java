@@ -8,11 +8,13 @@ import io.github.natnaelmekuriaw.minisearch.index.IndexRepository;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -114,6 +116,23 @@ class SearchHttpServerTest {
             Files.delete(snapshot);
             new IndexRepository().refresh(directory, snapshot);
             assertEquals(200, get(server, "/api/v1/search?q=alpha").statusCode());
+        }
+    }
+
+    @Test
+    void searchesUnicodePhrasesAndFiltersWithEscapedSnippets() throws Exception {
+        Path docs = Files.createDirectory(directory.resolve("docs"));
+        Files.writeString(docs.resolve("guide.md"), "café \"search engine\"");
+        Files.writeString(directory.resolve("other.txt"), "café search engine");
+        try (SearchHttpServer server = server()) {
+            String query = URLEncoder.encode("café \"search engine\" type:md path:docs/",
+                    StandardCharsets.UTF_8);
+            HttpResponse<String> response = get(server, "/api/v1/search?q=" + query);
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"total\":1"));
+            assertTrue(response.body().contains("\"path\":\"docs/guide.md\""));
+            assertTrue(response.body().contains("\\\"search engine\\\""));
         }
     }
 
