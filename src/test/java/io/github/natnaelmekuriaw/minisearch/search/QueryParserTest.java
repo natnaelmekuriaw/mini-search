@@ -12,6 +12,15 @@ class QueryParserTest {
     private final QueryParser parser = new QueryParser();
 
     @Test
+    void enforcesTheSameQueryBudgetForEveryCaller() {
+        assertEquals(256, parser.parse("a ".repeat(256)).clauses().size());
+        assertThrows(IllegalArgumentException.class, () -> parser.parse("a ".repeat(257)));
+        assertThrows(IllegalArgumentException.class,
+                () -> parser.parse("\"" + "a ".repeat(257) + "\""));
+        assertThrows(IllegalArgumentException.class, () -> parser.parse("a".repeat(4097)));
+    }
+
+    @Test
     void treatsRepeatedMinusLikeRepeatedNotWithoutChangingHyphenatedWords() {
         assertEquals(parser.parse("NOT NOT java"), parser.parse("--java"));
         assertEquals(parser.parse("NOT NOT \"search engine\""),
