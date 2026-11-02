@@ -18,7 +18,10 @@ public final class Tokenizer {
         List<Token> tokens = new ArrayList<>();
         Matcher matcher = WORD.matcher(text);
         while (matcher.find()) {
-            tokens.add(new Token(normalize(matcher.group()), tokens.size()));
+            Matcher normalized = WORD.matcher(normalize(matcher.group()));
+            while (normalized.find()) {
+                tokens.add(new Token(normalized.group(), tokens.size()));
+            }
         }
         return List.copyOf(tokens);
     }
@@ -28,7 +31,11 @@ public final class Tokenizer {
         if (!WORD.matcher(word).matches()) {
             throw new IllegalArgumentException("Expected one searchable word");
         }
-        return normalize(word);
+        String normalized = normalize(word);
+        if (!WORD.matcher(normalized).matches()) {
+            throw new IllegalArgumentException("Word normalizes to multiple searchable terms");
+        }
+        return normalized;
     }
 
     public Optional<TokenSpan> firstMatch(String text, Set<String> terms) {
@@ -37,11 +44,14 @@ public final class Tokenizer {
         Matcher matcher = WORD.matcher(text);
         int position = 0;
         while (matcher.find()) {
-            String term = normalize(matcher.group());
-            if (terms.isEmpty() || terms.contains(term)) {
-                return Optional.of(new TokenSpan(term, position, matcher.start(), matcher.end()));
+            Matcher normalized = WORD.matcher(normalize(matcher.group()));
+            while (normalized.find()) {
+                String term = normalized.group();
+                if (terms.isEmpty() || terms.contains(term)) {
+                    return Optional.of(new TokenSpan(term, position, matcher.start(), matcher.end()));
+                }
+                position++;
             }
-            position++;
         }
         return Optional.empty();
     }

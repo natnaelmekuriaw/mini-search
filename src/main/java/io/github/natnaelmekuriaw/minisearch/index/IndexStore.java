@@ -28,7 +28,7 @@ import java.util.TreeMap;
 
 public final class IndexStore {
     private static final int MAGIC = 0x4d534958;
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
     private static final int DIGEST_BYTES = 32;
     private static final int MAX_PATH_BYTES = 64 * 1024;
     private static final int MAX_CONTENT_BYTES = 8 * 1024 * 1024;

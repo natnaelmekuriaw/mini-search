@@ -75,7 +75,7 @@ class IndexStoreTest {
         Path snapshot = directory.resolve("index.bin");
         store.save(snapshot, new IndexBuilder().build(source));
         byte[] bytes = Files.readAllBytes(snapshot);
-        bytes[7] = 2;
+        bytes[7] = 3;
         Files.write(snapshot, bytes);
 
         IOException error = assertThrows(IOException.class, () -> store.load(snapshot));
