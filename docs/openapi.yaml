@@ -18,6 +18,10 @@ paths:
                 $ref: '#/components/schemas/Health'
         '503':
           $ref: '#/components/responses/IndexUnavailable'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/InternalError'
         '400':
           $ref: '#/components/responses/BadRequest'
   /api/v1/index:
@@ -32,6 +36,10 @@ paths:
                 $ref: '#/components/schemas/IndexStats'
         '503':
           $ref: '#/components/responses/IndexUnavailable'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/InternalError'
         '400':
           $ref: '#/components/responses/BadRequest'
   /api/v1/search:
@@ -45,7 +53,11 @@ paths:
             type: string
             minLength: 1
             maxLength: 4096
-          description: Terms, suffix-star prefixes, phrases, AND, OR, exclusions, groups, and type or path filters. A prefix can expand to at most 64 indexed terms.
+          description: >-
+            Terms, trailing-star prefixes, phrases, AND, OR, exclusions, groups,
+            and global type or path filters. Queries allow up to 256 searchable
+            words and 64 recursive expression levels. A prefix can expand to
+            at most 64 indexed terms. Filters must stay outside groups.
         - name: offset
           in: query
           schema:
@@ -70,6 +82,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '503':
           $ref: '#/components/responses/IndexUnavailable'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v1/suggest:
     get:
       summary: Suggest indexed terms by prefix
@@ -100,6 +116,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '503':
           $ref: '#/components/responses/IndexUnavailable'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   schemas:
     Health:
@@ -177,6 +197,23 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     IndexUnavailable:
       description: The saved index is missing or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    MethodNotAllowed:
+      description: The endpoint only accepts GET requests.
+      headers:
+        Allow:
+          schema:
+            type: string
+            const: GET
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: An unexpected failure occurred; details are logged by the server.
       content:
         application/json:
           schema:

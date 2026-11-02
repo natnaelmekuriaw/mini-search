@@ -1,136 +1,128 @@
 # MiniSearch
 
-MiniSearch is a small Java document search engine. It builds a positional inverted
-index for UTF-8 text and Markdown files and ranks query results with BM25. The index
-can be saved and refreshed through Java or the CLI. A versioned HTTP API
-serves searches from the saved index.
+A lightweight Java document search engine for local UTF-8 text and Markdown.
+MiniSearch builds a positional inverted index, ranks matches with BM25, and
+exposes one search core through a Java API, CLI, and read-only REST service.
 
-## Requirements
+It supports phrases, Boolean queries, path/type filters, prefix search,
+suggestions, saved snapshots, and incremental updates. It has no external runtime
+library dependencies and is currently a `0.1.0-SNAPSHOT` development version.
 
-- JDK 21 or newer
-- Internet access on the first verification run to download the pinned Maven
-  distribution and project test dependencies
+## Build and try it
 
-Run the project checks from PowerShell:
+Install JDK 21 or newer. Use Windows PowerShell 5.1 or PowerShell 7 on Windows,
+or PowerShell 7 on Linux. The Maven wrapper downloads a checksum-pinned Maven
+distribution and test dependencies on the first build.
 
 ```powershell
-.\scripts\verify.ps1
+git clone https://github.com/natnaelmekuriaw/MiniSearch.git
+cd MiniSearch
+./scripts/verify.ps1
+./scripts/demo.ps1
 ```
 
-The script checks for the JDK, downloads a checksum-verified Maven distribution
-when needed, and runs the Maven verification lifecycle.
+The demo indexes five sample files, searches and suggests terms, then adds a
+document and refreshes its saved index. It keeps its working files under
+`target/` and prints a command to start the API.
+Follow the [demonstration walkthrough](docs/demo.md) for expected results and
+copyable HTTP requests.
 
 ## Command line
 
-After verification, run the executable JAR from PowerShell:
-
 ```powershell
-java -jar target/minisearch-0.1.0-SNAPSHOT.jar index --source documents --index search-index.bin
-java -jar target/minisearch-0.1.0-SNAPSHOT.jar search --index search-index.bin --query 'java "search engine" type:md' --limit 10
-java -jar target/minisearch-0.1.0-SNAPSHOT.jar suggest --index search-index.bin --prefix jav --limit 10
+$jar = 'target/minisearch-0.1.0-SNAPSHOT.jar'
+java -jar $jar index --source examples/documents --index target/search-index.bin
+java -jar $jar search --index target/search-index.bin --query '(java OR kotlin) -draft path:guides/'
+java -jar $jar search --index target/search-index.bin --query 'jav* type:txt' --limit 10 --offset 0
+java -jar $jar suggest --index target/search-index.bin --prefix jav
+java -jar $jar --version
 ```
 
-Run `java -jar target/minisearch-0.1.0-SNAPSHOT.jar --help` for usage. `index`
-creates or refreshes the snapshot and reports added, changed, removed, and unchanged
-document counts. `search` reads the saved snapshot and prints ranked paths, scores,
-and snippets. It defaults to 20 results. Command errors return exit code 2 for
-invalid arguments or queries and 1 for file errors.
-`suggest` prints matching indexed terms in lexicographic order, one per line.
+Search prints ranked relative paths, scores, and snippets. Its default limit is
+20 and offset is 0. Suggestions print up to 10 terms by default, with a maximum
+of 20. Use `<command> --help` for that command's syntax and behavior.
 
-## HTTP API
+Run `index` again after editing documents. It reports added, changed, removed,
+and unchanged files. It still reads source files to detect changes, but retokenizes
+only added or changed documents. Searches read the saved index without rescanning
+the source directory.
 
-Start the server after creating an index:
+## REST API
+
+Start the service and keep its terminal open:
 
 ```powershell
-java -jar target/minisearch-0.1.0-SNAPSHOT.jar serve --index search-index.bin
-Invoke-RestMethod 'http://127.0.0.1:8080/api/v1/search?q=java&limit=10'
-Invoke-RestMethod 'http://127.0.0.1:8080/api/v1/suggest?q=jav&limit=10'
+java -jar $jar serve --index target/search-index.bin
 ```
 
-The server binds to `127.0.0.1:8080` by default. `--host` and `--port` override
-those values. Stop it with Ctrl+C. It detects snapshots replaced by the `index`
-command and loads the new version on the next request.
+From another PowerShell window:
 
-The read-only endpoints are `GET /api/v1/health`, `GET /api/v1/index`,
-`GET /api/v1/search`, and `GET /api/v1/suggest`. Search requires `q` and accepts `offset` (default `0`) and
-`limit` (default `20`, maximum `100`). Its JSON response contains `total`, `offset`,
-`limit`, and ranked `results` with `path`, `score`, and `snippet`. Invalid requests
-return JSON errors with HTTP 400; unknown paths return 404, unsupported methods
-return 405, and an unavailable saved index returns 503. The HTTP service does not
-modify source documents or the saved index.
-Suggestions require a single-word `q`, accept `limit` (default `10`, maximum
-`20`), and return matching terms in lexicographic order.
-The complete response schema is in [docs/openapi.yaml](docs/openapi.yaml).
+```powershell
+Invoke-RestMethod 'http://127.0.0.1:8080/api/v1/health'
+Invoke-RestMethod 'http://127.0.0.1:8080/api/v1/index'
+Invoke-RestMethod 'http://127.0.0.1:8080/api/v1/search?q=jav*&limit=10' | ConvertTo-Json -Depth 6
+Invoke-RestMethod 'http://127.0.0.1:8080/api/v1/suggest?q=jav' | ConvertTo-Json
+```
 
-## Index a directory
+Search responses contain `total`, `offset`, `limit`, and `results` with `path`,
+`score`, and `snippet`. The server loads atomic snapshot replacements on later
+requests. Stop it with Ctrl+C. `--host` and `--port` override the default
+`127.0.0.1:8080` binding. The API has no authentication or TLS termination.
+See the [OpenAPI contract](docs/openapi.yaml) and [operations guide](docs/operations.md).
+
+## Java API
 
 ```java
-import io.github.natnaelmekuriaw.minisearch.index.InMemoryIndex;
-import io.github.natnaelmekuriaw.minisearch.index.IndexBuilder;
-import io.github.natnaelmekuriaw.minisearch.index.IndexRepository;
-import io.github.natnaelmekuriaw.minisearch.search.SearchService;
-import java.nio.file.Path;
-
-InMemoryIndex index = new IndexBuilder().build(Path.of("documents"));
-System.out.println(index.documents());
-System.out.println(index.postings("search"));
-System.out.println(new SearchService(index).search("java \"search engine\" type:md", 10));
-
 IndexRepository repository = new IndexRepository();
 repository.refresh(Path.of("documents"), Path.of("search-index.bin"));
-System.out.println(new SearchService(repository.open(Path.of("search-index.bin")))
-        .search("java", 10));
+SearchService search = new SearchService(repository.open(Path.of("search-index.bin")));
+SearchPage page = search.searchPage("(java OR kotlin) -draft", 0, 10);
+List<String> suggestions = search.suggest("jav", 10);
 ```
 
-## Search queries
+The [runnable Java example](examples/README.md) includes imports and a complete
+entry point. The [architecture guide](docs/architecture.md) explains the index,
+tokenizer, ranking, persistence, and request handling.
 
-Adjacent terms use AND matching. `OR` joins alternatives, parentheses group them,
-and `-` or `NOT` excludes a term, phrase, or group. Negation binds first, then
-AND, then OR. For example, `(java OR kotlin) "search engine" -draft` requires
-the phrase and excludes documents containing `draft`. Quoted terms must occur
-in order at adjacent token positions. `type:md` and `type:txt` restrict the file extension; `path:notes/`
-restricts relative paths by prefix. Each filter can appear once. Path matching is
-case-sensitive, while file extensions are case-insensitive. Filters apply to the
-whole query, including grouped alternatives, so they must appear outside
-parentheses and cannot be negated. A filter-only query
-returns matching documents with score zero; an empty query returns no results.
+## Binary distributions
 
-Results contain the relative path, BM25 score, and a short plain-text snippet near
-a matching term. They are sorted by descending score and then path. Repeated query
-terms contribute to the score once. BM25 uses `k1 = 1.2`, `b = 0.75`, and document
-lengths measured in tokens. Quoted phrases restrict matches but receive no extra
-score. Only terms in matching positive branches contribute to score and snippets.
-Escaping and highlighting are not supported yet.
+To build a release candidate, run `./scripts/verify.ps1 -Release`. This uses the
+same verification entry point, packages ZIP and tar.gz archives, checks their
+launchers, and writes SHA-256 checksums. Release verification also requires `tar`.
 
-Append `*` to a single word to match indexed terms with that prefix, such as
-`jav*`. Prefixes can be used with Boolean operators, phrases, and filters.
-Wildcards inside quoted phrases are not supported.
-Matches rank using BM25 scores for the actual terms found in each document.
-A search prefix matching more than 64 indexed terms is rejected; use a longer
-prefix or the suggestion command to narrow it. Suggestions and prefix queries
-use the same Unicode normalization as indexing.
+An extracted distribution needs Java 21 or newer. Use `bin/minisearch.cmd` on
+Windows or `bin/minisearch` on Linux. You can also run `java -jar lib/minisearch.jar`.
+Samples and documentation are included; no Java runtime is bundled.
+See [release preparation](docs/releasing.md) for candidate artifacts and publishing.
 
-The scanner recursively includes `.txt` and `.md` files, regardless of extension
-case. It reads Markdown as source text, uses paths relative to the selected root,
-and skips symbolic links. Documents over 8 MiB or files that cannot be decoded as
-UTF-8 cause the build to fail. Empty documents remain in the document list.
+## Limits and compatibility
 
-Terms are sequences of Unicode letters and numbers, with combining marks allowed
-after the first character. Each term is normalized with NFKC and lowercased with
-`Locale.ROOT`. Positions are zero-based token offsets. `postings` accepts one term
-and returns an empty list when that term is absent.
+- Input is strict UTF-8; `.txt` and `.md` extensions are case-insensitive.
+  Each document is limited to 8 MiB. Symbolic links are skipped.
+- Markdown is indexed as source text. The index and original document content
+  remain in memory, so capacity depends on available heap.
+- Queries allow 4,096 UTF-16 code units and 256 searchable words. Prefix expansion
+  is capped at 64 terms. Wildcards inside phrases, escaping, and fuzzy matching
+  are unsupported.
+- Snapshots use format version 2. Version 1 must be rebuilt from source because
+  tokenization of Unicode compatibility expansions changed.
+- Use one snapshot writer at a time. Snapshots contain original document text
+  and should receive the same access controls as the source documents.
 
-`IndexRepository.refresh` creates a snapshot on the first call. Later calls compare
-source contents with the saved documents, retokenize only added or changed files,
-remove deleted files, and reuse postings for unchanged files. It returns counts for
-added, changed, removed, and unchanged documents. Refresh still reads each source
-file to detect changes. Search loads the saved snapshot without scanning or
-retokenizing the source directory.
+CI verifies Windows/Linux builds with Java 21 and 25 using the same script.
+No performance benchmark results are claimed for this version.
 
-The binary snapshot includes source text for snippets, a format version, and a
-SHA-256 checksum. Writes use a temporary file and atomic replacement. A damaged or
-unsupported snapshot causes an error rather than an automatic rebuild. Keep the
-snapshot outside the document directory or give it an extension other than `.txt`
-or `.md`. The format is currently version 1, and migration between versions is not
-available. Snapshots and loaded indexes still require memory proportional to the
-corpus size.
+## Documentation
+
+| Guide | Purpose |
+| --- | --- |
+| [Demonstration](docs/demo.md) | Run and present a practical example |
+| [Query language](docs/query-language.md) | Syntax, precedence, limits, and ranking |
+| [Architecture](docs/architecture.md) | Package responsibilities and data flow |
+| [Snapshot format](docs/index-format.md) | Compatibility, consistency, and recovery |
+| [Operations](docs/operations.md) | Deployment boundaries and troubleshooting |
+| [Release preparation](docs/releasing.md) | Build, inspect, and publish artifacts |
+| [Contributing](CONTRIBUTING.md) | Develop and submit focused changes |
+| [Changelog](CHANGELOG.md) | Features and compatibility changes |
+
+MiniSearch is distributed under the [MIT license](LICENSE).
