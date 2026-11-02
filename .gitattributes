@@ -4,4 +4,5 @@
 *.xml text eol=lf
 *.ps1 text eol=lf
 mvnw text eol=lf
+src/distribution/bin/minisearch text eol=lf
 *.cmd text eol=crlf

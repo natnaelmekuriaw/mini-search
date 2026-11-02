@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ -n "${JAVA_HOME:-}" ]; then
+    minisearch_java="$JAVA_HOME/bin/java"
+else
+    minisearch_java=java
+fi
+exec "$minisearch_java" -jar "$script_dir/../lib/minisearch.jar" "$@"
