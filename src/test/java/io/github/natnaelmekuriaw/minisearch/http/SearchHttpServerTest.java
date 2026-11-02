@@ -3,6 +3,7 @@ package io.github.natnaelmekuriaw.minisearch.http;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.natnaelmekuriaw.minisearch.index.IndexRepository;
 import java.io.IOException;
@@ -34,6 +35,23 @@ class SearchHttpServerTest {
             assertEquals(405, response.statusCode());
             assertEquals("", response.body());
             assertEquals("GET", response.headers().firstValue("Allow").orElseThrow());
+        }
+    }
+
+    @Test
+    void keepsServingAfterAFailedRefreshAndLoadsTheNextValidSnapshot() throws Exception {
+        Files.writeString(directory.resolve("note.md"), "alpha");
+        try (SearchHttpServer server = server()) {
+            Path broken = directory.resolve("broken.txt");
+            Files.write(broken, new byte[] {(byte) 0xc3, 0x28});
+            IndexRepository repository = new IndexRepository();
+            assertThrows(IOException.class,
+                    () -> repository.refresh(directory, directory.resolve("index.bin")));
+            assertTrue(get(server, "/api/v1/search?q=alpha").body().contains("note.md"));
+            Files.writeString(broken, "bravo");
+            repository.refresh(directory, directory.resolve("index.bin"));
+            assertTrue(get(server, "/api/v1/search?q=bravo").body().contains("broken.txt"));
+            assertEquals(200, get(server, "/api/v1/health").statusCode());
         }
     }
 
