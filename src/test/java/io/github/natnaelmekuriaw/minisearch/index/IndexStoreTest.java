@@ -21,6 +21,18 @@ class IndexStoreTest {
     private final IndexStore store = new IndexStore();
 
     @Test
+    void acceptsShortFilenamesAndRejectsDirectoryDestinations() throws IOException {
+        InMemoryIndex index = new IndexBuilder().build(directory);
+        Path shortName = directory.resolve("x");
+        store.save(shortName, index);
+        assertEquals(List.of(), store.load(shortName).documents());
+        assertThrows(IOException.class, () -> store.save(directory, index));
+        assertThrows(IOException.class, () -> store.save(directory.getRoot(), index));
+        assertThrows(IOException.class,
+                () -> new IndexRepository().refresh(directory, directory.getRoot()));
+    }
+
+    @Test
     void restoresDocumentsPostingsAndSearchResults() throws IOException {
         Path source = Files.createDirectory(directory.resolve("source"));
         Files.writeString(source.resolve("a.md"), "Java search java");

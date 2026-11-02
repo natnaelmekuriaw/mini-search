@@ -40,9 +40,12 @@ public final class IndexStore {
         Objects.requireNonNull(file, "file");
         Objects.requireNonNull(index, "index");
         Path target = file.toAbsolutePath().normalize();
+        if (target.getFileName() == null || Files.isDirectory(target)) {
+            throw new IOException("Index snapshot must name a file: " + target);
+        }
         Path parent = target.getParent();
         Files.createDirectories(parent);
-        Path temporary = Files.createTempFile(parent, target.getFileName() + ".", ".tmp");
+        Path temporary = Files.createTempFile(parent, target.getFileName() + ".tmp-", ".tmp");
         try {
             try (var output = new BufferedOutputStream(Files.newOutputStream(temporary))) {
                 DigestOutputStream digestOutput = new DigestOutputStream(output, sha256());
