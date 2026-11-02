@@ -36,6 +36,13 @@ class DocumentScannerTest {
     }
 
     @Test
+    void removesOnlyTheLeadingUtf8ByteOrderMark() throws IOException {
+        Files.writeString(directory.resolve("bom.txt"), "\uFEFFhello\uFEFFworld");
+        assertEquals(List.of(new SourceDocument("bom.txt", "hello\uFEFFworld")),
+                scanner.scan(directory));
+    }
+
+    @Test
     void skipsSymbolicFilesAndDirectories() throws IOException {
         Path outside = Files.createTempDirectory(directory.getParent(), "outside-");
         try {

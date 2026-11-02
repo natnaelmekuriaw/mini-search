@@ -71,9 +71,10 @@ public final class DocumentScanner {
         if (bytes.length > MAX_DOCUMENT_BYTES) {
             throw new IOException("Document exceeds " + MAX_DOCUMENT_BYTES + " bytes: " + file);
         }
-        return StandardCharsets.UTF_8.newDecoder()
+        String content = StandardCharsets.UTF_8.newDecoder()
                 .onMalformedInput(CodingErrorAction.REPORT)
                 .onUnmappableCharacter(CodingErrorAction.REPORT)
                 .decode(ByteBuffer.wrap(bytes)).toString();
+        return content.startsWith("\uFEFF") ? content.substring(1) : content;
     }
 }
