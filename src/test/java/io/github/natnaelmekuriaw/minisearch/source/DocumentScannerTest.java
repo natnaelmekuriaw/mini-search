@@ -2,6 +2,7 @@ package io.github.natnaelmekuriaw.minisearch.source;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -32,6 +33,26 @@ class DocumentScannerTest {
     void includesEmptyDocuments() throws IOException {
         Files.createFile(directory.resolve("empty.txt"));
         assertEquals(List.of(new SourceDocument("empty.txt", "")), scanner.scan(directory));
+    }
+
+    @Test
+    void skipsSymbolicFilesAndDirectories() throws IOException {
+        Path outside = Files.createTempDirectory(directory.getParent(), "outside-");
+        try {
+            Files.writeString(outside.resolve("secret.md"), "outside");
+            try {
+                Files.createSymbolicLink(directory.resolve("linked.md"), outside.resolve("secret.md"));
+                Files.createSymbolicLink(directory.resolve("linked-directory"), outside);
+            } catch (IOException | UnsupportedOperationException exception) {
+                assumeTrue(false, "Symbolic links are unavailable: " + exception.getMessage());
+            }
+            assertEquals(List.of(), scanner.scan(directory));
+        } finally {
+            Files.deleteIfExists(directory.resolve("linked.md"));
+            Files.deleteIfExists(directory.resolve("linked-directory"));
+            Files.deleteIfExists(outside.resolve("secret.md"));
+            Files.deleteIfExists(outside);
+        }
     }
 
     @Test
