@@ -13,18 +13,21 @@
                 <include>README.md</include>
                 <include>CHANGELOG.md</include>
             </includes>
+            <lineEnding>unix</lineEnding>
             <fileMode>0644</fileMode>
             <directoryMode>0755</directoryMode>
         </fileSet>
         <fileSet>
             <directory>docs</directory>
             <outputDirectory>docs</outputDirectory>
+            <lineEnding>unix</lineEnding>
             <fileMode>0644</fileMode>
             <directoryMode>0755</directoryMode>
         </fileSet>
         <fileSet>
             <directory>examples</directory>
             <outputDirectory>examples</outputDirectory>
+            <lineEnding>unix</lineEnding>
             <fileMode>0644</fileMode>
             <directoryMode>0755</directoryMode>
         </fileSet>
