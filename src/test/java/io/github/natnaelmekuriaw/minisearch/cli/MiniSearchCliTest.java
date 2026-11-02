@@ -126,6 +126,9 @@ class MiniSearchCliTest {
 
     @Test
     void printsHelpAndRejectsInvalidOptions() {
+        assertTrue(run("search", "--help").out().contains("word*"));
+        assertTrue(run("suggest", "--help").out().contains("maximum: 20"));
+        assertFalse(run("index", "--help").out().contains("--port"));
         assertTrue(run("--version").out().startsWith("MiniSearch "));
         assertEquals(0, run("--version").code());
         assertEquals(0, run("--help").code());

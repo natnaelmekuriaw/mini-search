@@ -57,7 +57,7 @@ public final class MiniSearchCli {
         if (args.length == 2 && args[1].equals("--help")
                 && (args[0].equals("index") || args[0].equals("search")
                 || args[0].equals("suggest") || args[0].equals("serve"))) {
-            out.print(USAGE);
+            out.print(commandUsage(args[0]));
             return 0;
         }
 
@@ -91,6 +91,33 @@ public final class MiniSearchCli {
         out.printf(Locale.ROOT, "Indexed %d documents: %d added, %d changed, %d removed, %d unchanged.%n",
                 update.index().documents().size(), update.added(), update.changed(),
                 update.removed(), update.unchanged());
+    }
+
+    private static String commandUsage(String command) {
+        return switch (command) {
+            case "index" -> """
+                    Usage: java -jar <jar-file> index --source <directory> --index <file>
+                    Create or refresh a saved index of UTF-8 .txt and .md documents.
+                    Reports added, changed, removed, and unchanged document counts.
+                    """;
+            case "search" -> """
+                    Usage: java -jar <jar-file> search --index <file> --query <text> [--limit <number>] [--offset <number>]
+                    Print ranked paths, scores, and snippets. Default limit: 20; offset: 0.
+                    Queries support terms, quoted phrases, AND, OR, NOT, groups, and word* prefixes.
+                    Filters: type:md, type:txt, and path:notes/.
+                    """;
+            case "suggest" -> """
+                    Usage: java -jar <jar-file> suggest --index <file> --prefix <word> [--limit <number>]
+                    Print indexed terms in lexicographic order. Default limit: 10; maximum: 20.
+                    Supply one word without a wildcard.
+                    """;
+            case "serve" -> """
+                    Usage: java -jar <jar-file> serve --index <file> [--host <address>] [--port <number>]
+                    Serve the saved index at http://127.0.0.1:8080 by default. Stop with Ctrl+C.
+                    GET endpoints: /api/v1/health, /api/v1/index, /api/v1/search, /api/v1/suggest.
+                    """;
+            default -> throw new IllegalArgumentException("Unknown command: " + command);
+        };
     }
 
     private void search(String[] args, PrintStream out) throws IOException {
