@@ -126,6 +126,8 @@ class MiniSearchCliTest {
 
     @Test
     void printsHelpAndRejectsInvalidOptions() {
+        assertTrue(run("--version").out().startsWith("MiniSearch "));
+        assertEquals(0, run("--version").code());
         assertEquals(0, run("--help").code());
         assertTrue(run("--help").out().contains("<jar-file> search"));
         assertEquals(2, run().code());

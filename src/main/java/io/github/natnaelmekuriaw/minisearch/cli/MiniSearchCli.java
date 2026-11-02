@@ -25,6 +25,7 @@ public final class MiniSearchCli {
               java -jar <jar-file> suggest --index <file> --prefix <word> [--limit <number>]
               java -jar <jar-file> serve --index <file> [--host <address>] [--port <number>]
               java -jar <jar-file> --help
+              java -jar <jar-file> --version
             """;
 
     private final IndexRepository repository = new IndexRepository();
@@ -40,6 +41,11 @@ public final class MiniSearchCli {
         Objects.requireNonNull(args, "args");
         Objects.requireNonNull(out, "out");
         Objects.requireNonNull(err, "err");
+        if (args.length == 1 && args[0].equals("--version")) {
+            String version = MiniSearchCli.class.getPackage().getImplementationVersion();
+            out.println("MiniSearch " + (version == null ? "development" : version));
+            return 0;
+        }
         if (args.length == 1 && (args[0].equals("--help") || args[0].equals("help"))) {
             out.print(USAGE);
             return 0;
