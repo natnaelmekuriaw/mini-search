@@ -26,6 +26,18 @@ class SearchHttpServerTest {
     Path directory;
 
     @Test
+    void rejectsHeadWithoutSendingAResponseBody() throws Exception {
+        try (SearchHttpServer server = server(); HttpClient client = HttpClient.newHttpClient()) {
+            HttpRequest request = HttpRequest.newBuilder(uri(server, "/api/v1/search"))
+                    .method("HEAD", HttpRequest.BodyPublishers.noBody()).build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            assertEquals(405, response.statusCode());
+            assertEquals("", response.body());
+            assertEquals("GET", response.headers().firstValue("Allow").orElseThrow());
+        }
+    }
+
+    @Test
     void servesHealthIndexAndRankedSearch() throws Exception {
         Files.writeString(directory.resolve("guide.md"), "Java search engine");
         try (SearchHttpServer server = server()) {
