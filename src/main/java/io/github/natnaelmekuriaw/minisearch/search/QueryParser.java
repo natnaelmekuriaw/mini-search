@@ -81,9 +81,7 @@ public final class QueryParser {
                 }
                 tokens.add(input.substring(cursor, end + 1));
                 cursor = end + 1;
-            } else if (current == '-' && (cursor + 1 == input.length()
-                    || input.charAt(cursor + 1) == '(' || input.charAt(cursor + 1) == '"'
-                    || Character.isWhitespace(input.charAt(cursor + 1)))) {
+            } else if (current == '-') {
                 tokens.add("-");
                 cursor++;
             } else {
@@ -95,13 +93,7 @@ public final class QueryParser {
                     }
                     end++;
                 }
-                String token = input.substring(cursor, end);
-                if (token.startsWith("-") && token.length() > 1) {
-                    tokens.add("-");
-                    tokens.add(token.substring(1));
-                } else {
-                    tokens.add(token);
-                }
+                tokens.add(input.substring(cursor, end));
                 cursor = end;
             }
         }

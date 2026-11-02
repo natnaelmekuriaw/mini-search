@@ -12,6 +12,14 @@ class QueryParserTest {
     private final QueryParser parser = new QueryParser();
 
     @Test
+    void treatsRepeatedMinusLikeRepeatedNotWithoutChangingHyphenatedWords() {
+        assertEquals(parser.parse("NOT NOT java"), parser.parse("--java"));
+        assertEquals(parser.parse("NOT NOT \"search engine\""),
+                parser.parse("--\"search engine\""));
+        assertEquals(parser.parse("java search").clauses(), parser.parse("java-search").clauses());
+    }
+
+    @Test
     void parsesTermsPhrasesAndFilters() {
         SearchQuery query = parser.parse("Java \"search engine\" type:MD path:notes/");
 
