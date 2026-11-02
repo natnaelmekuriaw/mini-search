@@ -20,6 +20,7 @@ import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -124,6 +125,8 @@ public final class IndexStore {
         List<IndexedDocument> documents = new ArrayList<>();
         Map<String, String> contents = new HashMap<>();
         Map<String, Integer> lengths = new HashMap<>();
+        Map<String, BitSet> coveredPositions = new HashMap<>();
+        Tokenizer tokenizer = new Tokenizer();
         String priorPath = null;
         for (int i = 0; i < documentCount; i++) {
             String path = readString(data, MAX_PATH_BYTES);
@@ -135,6 +138,7 @@ public final class IndexStore {
             documents.add(new IndexedDocument(path, length));
             contents.put(path, readString(data, MAX_CONTENT_BYTES));
             lengths.put(path, length);
+            coveredPositions.put(path, new BitSet());
             priorPath = path;
         }
         int termCount = readCount(data, MAX_TERMS, "term count");
@@ -142,7 +146,8 @@ public final class IndexStore {
         String priorTerm = null;
         for (int i = 0; i < termCount; i++) {
             String term = readString(data, MAX_TERM_BYTES);
-            if (term.isBlank() || (priorTerm != null && priorTerm.compareTo(term) >= 0)) {
+            if (!tokenizer.normalizeWord(term).equals(term)
+                    || (priorTerm != null && priorTerm.compareTo(term) >= 0)) {
                 throw new IOException("Index terms are invalid or out of order");
             }
             int postingCount = readCount(data, documentCount, "posting count");
@@ -167,6 +172,11 @@ public final class IndexStore {
                     if (position <= priorPosition || position >= lengths.get(path)) {
                         throw new IOException("Index posting position is invalid");
                     }
+                    BitSet covered = coveredPositions.get(path);
+                    if (covered.get(position)) {
+                        throw new IOException("Index token position belongs to multiple terms");
+                    }
+                    covered.set(position);
                     positions.add(position);
                     priorPosition = position;
                 }
@@ -176,7 +186,12 @@ public final class IndexStore {
             postings.put(term, List.copyOf(termPostings));
             priorTerm = term;
         }
-        return new InMemoryIndex(documents, postings, contents, new Tokenizer());
+        for (IndexedDocument document : documents) {
+            if (coveredPositions.get(document.path()).cardinality() != document.tokenCount()) {
+                throw new IOException("Index document has missing token positions: " + document.path());
+            }
+        }
+        return new InMemoryIndex(documents, postings, contents, tokenizer);
     }
 
     private static int readCount(DataInputStream data, int maximum, String name) throws IOException {
