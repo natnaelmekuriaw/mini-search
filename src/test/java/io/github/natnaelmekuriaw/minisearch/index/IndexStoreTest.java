@@ -6,11 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.natnaelmekuriaw.minisearch.search.SearchService;
+import io.github.natnaelmekuriaw.minisearch.text.Tokenizer;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -19,6 +21,25 @@ class IndexStoreTest {
     Path directory;
 
     private final IndexStore store = new IndexStore();
+
+    @Test
+    void leavesNoTemporaryFilesAndPreservesThePriorSnapshotOnWriteFailure() throws IOException {
+        Path source = Files.createDirectory(directory.resolve("source"));
+        Files.writeString(source.resolve("a.md"), "alpha");
+        Path snapshot = directory.resolve("index.bin");
+        store.save(snapshot, new IndexBuilder().build(source));
+        byte[] before = Files.readAllBytes(snapshot);
+        String oversizedPath = "a".repeat(70_000);
+        InMemoryIndex invalid = new InMemoryIndex(
+                List.of(new IndexedDocument(oversizedPath, 0)), Map.of(),
+                Map.of(oversizedPath, ""), new Tokenizer());
+        assertThrows(IOException.class, () -> store.save(snapshot, invalid));
+        assertArrayEquals(before, Files.readAllBytes(snapshot));
+        try (var files = Files.list(directory)) {
+            assertEquals(List.of("index.bin", "source"),
+                    files.map(path -> path.getFileName().toString()).sorted().toList());
+        }
+    }
 
     @Test
     void acceptsShortFilenamesAndRejectsDirectoryDestinations() throws IOException {
