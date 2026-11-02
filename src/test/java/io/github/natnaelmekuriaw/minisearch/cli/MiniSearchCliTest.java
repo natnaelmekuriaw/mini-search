@@ -28,6 +28,23 @@ class MiniSearchCliTest {
     private final MiniSearchCli cli = new MiniSearchCli();
 
     @Test
+    void pagesCliResultsUsingTheSameOffsetAsTheApi() throws IOException {
+        Path source = Files.createDirectory(directory.resolve("docs"));
+        Files.writeString(source.resolve("a.md"), "java");
+        Files.writeString(source.resolve("b.md"), "java");
+        Path snapshot = directory.resolve("index.bin");
+        assertEquals(0, run("index", "--source", source.toString(),
+                "--index", snapshot.toString()).code());
+        Result second = run("search", "--index", snapshot.toString(), "--query", "java",
+                "--offset", "1", "--limit", "1");
+        assertEquals(0, second.code());
+        assertTrue(second.out().contains("b.md"));
+        assertFalse(second.out().contains("a.md"));
+        assertEquals(2, run("search", "--index", snapshot.toString(), "--query", "java",
+                "--offset", "-1").code());
+    }
+
+    @Test
     void indexesAndSearchesSavedDocuments() throws IOException {
         Path source = Files.createDirectory(directory.resolve("docs"));
         Files.writeString(source.resolve("guide.md"), "Java search engine");
@@ -109,6 +126,11 @@ class MiniSearchCliTest {
 
     @Test
     void printsHelpAndRejectsInvalidOptions() {
+        assertTrue(run("search", "--help").out().contains("word*"));
+        assertTrue(run("suggest", "--help").out().contains("maximum: 20"));
+        assertFalse(run("index", "--help").out().contains("--port"));
+        assertTrue(run("--version").out().startsWith("MiniSearch "));
+        assertEquals(0, run("--version").code());
         assertEquals(0, run("--help").code());
         assertTrue(run("--help").out().contains("<jar-file> search"));
         assertEquals(2, run().code());

@@ -21,10 +21,11 @@ public final class MiniSearchCli {
     private static final String USAGE = """
             Usage:
               java -jar <jar-file> index --source <directory> --index <file>
-              java -jar <jar-file> search --index <file> --query <text> [--limit <number>]
+              java -jar <jar-file> search --index <file> --query <text> [--limit <number>] [--offset <number>]
               java -jar <jar-file> suggest --index <file> --prefix <word> [--limit <number>]
               java -jar <jar-file> serve --index <file> [--host <address>] [--port <number>]
               java -jar <jar-file> --help
+              java -jar <jar-file> --version
             """;
 
     private final IndexRepository repository = new IndexRepository();
@@ -40,6 +41,11 @@ public final class MiniSearchCli {
         Objects.requireNonNull(args, "args");
         Objects.requireNonNull(out, "out");
         Objects.requireNonNull(err, "err");
+        if (args.length == 1 && args[0].equals("--version")) {
+            String version = MiniSearchCli.class.getPackage().getImplementationVersion();
+            out.println("MiniSearch " + (version == null ? "development" : version));
+            return 0;
+        }
         if (args.length == 1 && (args[0].equals("--help") || args[0].equals("help"))) {
             out.print(USAGE);
             return 0;
@@ -51,7 +57,7 @@ public final class MiniSearchCli {
         if (args.length == 2 && args[1].equals("--help")
                 && (args[0].equals("index") || args[0].equals("search")
                 || args[0].equals("suggest") || args[0].equals("serve"))) {
-            out.print(USAGE);
+            out.print(commandUsage(args[0]));
             return 0;
         }
 
@@ -87,12 +93,49 @@ public final class MiniSearchCli {
                 update.removed(), update.unchanged());
     }
 
+    private static String commandUsage(String command) {
+        return switch (command) {
+            case "index" -> """
+                    Usage: java -jar <jar-file> index --source <directory> --index <file>
+                    Create or refresh a saved index of UTF-8 .txt and .md documents.
+                    Reports added, changed, removed, and unchanged document counts.
+                    """;
+            case "search" -> """
+                    Usage: java -jar <jar-file> search --index <file> --query <text> [--limit <number>] [--offset <number>]
+                    Print ranked paths, scores, and snippets. Default limit: 20; offset: 0.
+                    Queries support terms, quoted phrases, AND, OR, NOT, groups, and word* prefixes.
+                    Filters: type:md, type:txt, and path:notes/.
+                    """;
+            case "suggest" -> """
+                    Usage: java -jar <jar-file> suggest --index <file> --prefix <word> [--limit <number>]
+                    Print indexed terms in lexicographic order. Default limit: 10; maximum: 20.
+                    Supply one word without a wildcard.
+                    """;
+            case "serve" -> """
+                    Usage: java -jar <jar-file> serve --index <file> [--host <address>] [--port <number>]
+                    Serve the saved index at http://127.0.0.1:8080 by default. Stop with Ctrl+C.
+                    GET endpoints: /api/v1/health, /api/v1/index, /api/v1/search, /api/v1/suggest.
+                    """;
+            default -> throw new IllegalArgumentException("Unknown command: " + command);
+        };
+    }
+
     private void search(String[] args, PrintStream out) throws IOException {
-        Map<String, String> options = parseOptions(args, Set.of("index", "query", "limit"));
+        Map<String, String> options = parseOptions(args, Set.of("index", "query", "limit", "offset"));
         Path snapshot = Path.of(required(options, "index"));
         String query = required(options, "query");
         int limit = parseLimit(options.getOrDefault("limit", "20"));
-        List<SearchResult> results = new SearchService(repository.open(snapshot)).search(query, limit);
+        int offset;
+        try {
+            offset = Integer.parseInt(options.getOrDefault("offset", "0"));
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("--offset must be a nonnegative integer", exception);
+        }
+        if (offset < 0) {
+            throw new IllegalArgumentException("--offset must be a nonnegative integer");
+        }
+        List<SearchResult> results = new SearchService(repository.open(snapshot))
+                .searchPage(query, offset, limit).results();
         out.printf(Locale.ROOT, "%d result%s%n", results.size(), results.size() == 1 ? "" : "s");
         for (SearchResult result : results) {
             out.printf(Locale.ROOT, "%s  %.3f%n", result.path(), result.score());

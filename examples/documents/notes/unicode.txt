@@ -1,0 +1,1 @@
+Café notes explain Unicode normalization and document search.

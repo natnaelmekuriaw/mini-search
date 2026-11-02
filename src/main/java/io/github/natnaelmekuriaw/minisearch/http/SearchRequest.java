@@ -1,18 +1,18 @@
 package io.github.natnaelmekuriaw.minisearch.http;
 
+import io.github.natnaelmekuriaw.minisearch.search.QueryParser;
 import java.util.Map;
 import java.util.Set;
 
 record SearchRequest(String query, int offset, int limit) {
     private static final int DEFAULT_LIMIT = 20;
     private static final int MAX_LIMIT = 100;
-    private static final int MAX_QUERY_LENGTH = 4_096;
 
     SearchRequest {
         if (query == null || query.isBlank()) {
             throw new IllegalArgumentException("Missing q parameter");
         }
-        if (query.length() > MAX_QUERY_LENGTH) {
+        if (query.length() > QueryParser.MAX_QUERY_LENGTH) {
             throw new IllegalArgumentException("Search query is too long");
         }
         if (offset < 0) {

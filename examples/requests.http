@@ -1,0 +1,22 @@
+@base = http://127.0.0.1:8080
+
+### Health
+GET {{base}}/api/v1/health
+
+### Saved index statistics
+GET {{base}}/api/v1/index
+
+### Grouped phrase search over published guides
+GET {{base}}/api/v1/search?q=%28java%20OR%20kotlin%29%20%22search%20engine%22%20-draft%20path%3Aguides%2F
+
+### Prefix search restricted to text files
+GET {{base}}/api/v1/search?q=jav*%20type%3Atxt
+
+### Second result, with the full total retained
+GET {{base}}/api/v1/search?q=java&offset=1&limit=1
+
+### Indexed term suggestions
+GET {{base}}/api/v1/suggest?q=jav&limit=10
+
+### Expected HTTP 400
+GET {{base}}/api/v1/search?q=java&limit=0

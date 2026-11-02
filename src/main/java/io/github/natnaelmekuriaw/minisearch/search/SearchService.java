@@ -101,7 +101,7 @@ public final class SearchService {
                             expansions, false)
                             .orElseThrow();
             double score = 0;
-            for (String term : matchedTerms) {
+            for (String term : matchedTerms.stream().sorted().toList()) {
                 score += scorer.score(documents.size(), byTerm.get(term).size(),
                         byTerm.get(term).get(path).frequency(),
                         documents.get(path).tokenCount(), averageDocumentLength);

@@ -2,6 +2,7 @@ package io.github.natnaelmekuriaw.minisearch.search;
 
 import io.github.natnaelmekuriaw.minisearch.text.Token;
 import io.github.natnaelmekuriaw.minisearch.text.Tokenizer;
+import io.github.natnaelmekuriaw.minisearch.source.DocumentPaths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -9,11 +10,16 @@ import java.util.Objects;
 import java.util.Optional;
 
 public final class QueryParser {
+    public static final int MAX_QUERY_LENGTH = 4_096;
+    private static final int MAX_QUERY_TERMS = 256;
     private static final int MAX_EXPRESSION_DEPTH = 64;
     private final Tokenizer tokenizer = new Tokenizer();
 
     public SearchQuery parse(String input) {
         Objects.requireNonNull(input, "input");
+        if (input.length() > MAX_QUERY_LENGTH) {
+            throw new IllegalArgumentException("Search query is too long");
+        }
         List<String> tokens = lex(input);
         List<String> expressionTokens = new ArrayList<>();
         String fileType = null;
@@ -45,10 +51,7 @@ public final class QueryParser {
                 if (pathPrefix != null) {
                     throw new IllegalArgumentException("Only one path filter is allowed");
                 }
-                pathPrefix = token.substring(5).replace('\\', '/');
-                if (pathPrefix.isEmpty() || pathPrefix.startsWith("/")) {
-                    throw new IllegalArgumentException("Path filter must be a relative prefix");
-                }
+                pathPrefix = DocumentPaths.normalizePrefix(token.substring(5));
             } else {
                 expressionTokens.add(token);
             }
@@ -83,9 +86,7 @@ public final class QueryParser {
                 }
                 tokens.add(input.substring(cursor, end + 1));
                 cursor = end + 1;
-            } else if (current == '-' && (cursor + 1 == input.length()
-                    || input.charAt(cursor + 1) == '(' || input.charAt(cursor + 1) == '"'
-                    || Character.isWhitespace(input.charAt(cursor + 1)))) {
+            } else if (current == '-') {
                 tokens.add("-");
                 cursor++;
             } else {
@@ -97,13 +98,7 @@ public final class QueryParser {
                     }
                     end++;
                 }
-                String token = input.substring(cursor, end);
-                if (token.startsWith("-") && token.length() > 1) {
-                    tokens.add("-");
-                    tokens.add(token.substring(1));
-                } else {
-                    tokens.add(token);
-                }
+                tokens.add(input.substring(cursor, end));
                 cursor = end;
             }
         }
@@ -123,6 +118,7 @@ public final class QueryParser {
         private final List<String> tokens;
         private int cursor;
         private int depth;
+        private int termCount;
 
         private ExpressionParser(List<String> tokens) {
             this.tokens = tokens;
@@ -190,6 +186,7 @@ public final class QueryParser {
                 if (terms.isEmpty()) {
                     throw new IllegalArgumentException("Quoted phrase has no searchable terms");
                 }
+                countTerms(terms.size());
                 return new QueryExpression.Clause(new PhraseClause(terms));
             }
             if (token.indexOf(':') >= 0) {
@@ -200,6 +197,7 @@ public final class QueryParser {
                     throw new IllegalArgumentException("Wildcard must follow one word");
                 }
                 String prefix = tokenizer.normalizeWord(token.substring(0, token.length() - 1));
+                countTerms(1);
                 return new QueryExpression.Clause(new PrefixClause(prefix));
             }
             List<QueryExpression> terms = tokenizer.tokenize(token).stream()
@@ -208,11 +206,20 @@ public final class QueryParser {
             if (terms.isEmpty()) {
                 throw new IllegalArgumentException("Query term has no searchable text");
             }
+            countTerms(terms.size());
             return terms.size() == 1 ? terms.getFirst() : new QueryExpression.And(terms);
         }
 
         private boolean peek(String value) {
             return cursor < tokens.size() && tokens.get(cursor).equalsIgnoreCase(value);
+        }
+
+        private void countTerms(int count) {
+            termCount += count;
+            if (termCount > MAX_QUERY_TERMS) {
+                throw new IllegalArgumentException("Query contains more than "
+                        + MAX_QUERY_TERMS + " searchable terms");
+            }
         }
 
         private boolean accept(String value) {

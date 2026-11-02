@@ -105,7 +105,10 @@ public final class SearchHttpServer implements AutoCloseable {
         exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
         exchange.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
-        exchange.sendResponseHeaders(status, bytes.length);
-        exchange.getResponseBody().write(bytes);
+        boolean head = exchange.getRequestMethod().equals("HEAD");
+        exchange.sendResponseHeaders(status, head ? -1 : bytes.length);
+        if (!head) {
+            exchange.getResponseBody().write(bytes);
+        }
     }
 }

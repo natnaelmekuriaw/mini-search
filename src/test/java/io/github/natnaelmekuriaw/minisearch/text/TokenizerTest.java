@@ -12,6 +12,15 @@ class TokenizerTest {
     private final Tokenizer tokenizer = new Tokenizer();
 
     @Test
+    void splitsCompatibilityExpansionsAndKeepsTheirSourceSpan() {
+        assertEquals(tokenizer.tokenize("صلى الله عليه وسلم next"),
+                tokenizer.tokenize("\uFDFA next"));
+        assertEquals(Optional.of(new TokenSpan("الله", 1, 0, 1)),
+                tokenizer.firstMatch("\uFDFA next", Set.of("الله")));
+        assertThrows(IllegalArgumentException.class, () -> tokenizer.normalizeWord("\uFDFA"));
+    }
+
+    @Test
     void assignsConsecutivePositionsAcrossPunctuationAndWhitespace() {
         assertEquals(List.of(new Token("hello", 0), new Token("world", 1)),
                 tokenizer.tokenize("Hello,\n world!"));

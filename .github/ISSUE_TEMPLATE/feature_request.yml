@@ -1,0 +1,22 @@
+name: Feature request
+description: Discuss a proposed change before implementation.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: Describe what you need to accomplish and where the current behavior falls short.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior
+      description: A sample query, command, or response helps make the proposal concrete.
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Alternatives and compatibility
+      description: Note effects on existing queries, APIs, stored indexes, or dependencies.

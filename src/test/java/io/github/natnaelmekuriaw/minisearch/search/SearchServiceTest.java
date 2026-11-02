@@ -18,6 +18,17 @@ class SearchServiceTest {
     Path directory;
 
     @Test
+    void scoresEquivalentQueriesInTheSameTermOrder() throws IOException {
+        write("a.md", "java search search engine");
+        write("b.md", "java engine");
+        write("c.md", "engine");
+        SearchService service = service();
+        assertEquals(service.search("java search engine"), service.search("engine search java"));
+        assertEquals(service.search("java search engine"),
+                service.search("(engine OR missing) search java"));
+    }
+
+    @Test
     void ranksDocumentsWithMoreMatchingEvidenceFirst() throws IOException {
         write("docs/guide.md", "java search engine java search");
         write("docs/other.txt", "java engine search");

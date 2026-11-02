@@ -20,6 +20,9 @@ public final class IndexRepository {
         Objects.requireNonNull(snapshot, "snapshot");
         Path directory = root.toAbsolutePath().normalize();
         Path target = snapshot.toAbsolutePath().normalize();
+        if (target.getFileName() == null || Files.isDirectory(target)) {
+            throw new IOException("Index snapshot must name a file: " + target);
+        }
         String filename = target.getFileName().toString().toLowerCase(Locale.ROOT);
         if (target.startsWith(directory) && (filename.endsWith(".txt") || filename.endsWith(".md"))) {
             throw new IllegalArgumentException("Index snapshot must not be a searchable document");

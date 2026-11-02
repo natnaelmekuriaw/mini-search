@@ -1,6 +1,7 @@
 package io.github.natnaelmekuriaw.minisearch.index;
 
 import io.github.natnaelmekuriaw.minisearch.text.Tokenizer;
+import io.github.natnaelmekuriaw.minisearch.source.DocumentPaths;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
@@ -19,7 +20,7 @@ import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +29,7 @@ import java.util.TreeMap;
 
 public final class IndexStore {
     private static final int MAGIC = 0x4d534958;
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
     private static final int DIGEST_BYTES = 32;
     private static final int MAX_PATH_BYTES = 64 * 1024;
     private static final int MAX_CONTENT_BYTES = 8 * 1024 * 1024;
@@ -40,9 +41,12 @@ public final class IndexStore {
         Objects.requireNonNull(file, "file");
         Objects.requireNonNull(index, "index");
         Path target = file.toAbsolutePath().normalize();
+        if (target.getFileName() == null || Files.isDirectory(target)) {
+            throw new IOException("Index snapshot must name a file: " + target);
+        }
         Path parent = target.getParent();
         Files.createDirectories(parent);
-        Path temporary = Files.createTempFile(parent, target.getFileName() + ".", ".tmp");
+        Path temporary = Files.createTempFile(parent, target.getFileName() + ".tmp-", ".tmp");
         try {
             try (var output = new BufferedOutputStream(Files.newOutputStream(temporary))) {
                 DigestOutputStream digestOutput = new DigestOutputStream(output, sha256());
@@ -121,10 +125,12 @@ public final class IndexStore {
         List<IndexedDocument> documents = new ArrayList<>();
         Map<String, String> contents = new HashMap<>();
         Map<String, Integer> lengths = new HashMap<>();
+        Map<String, BitSet> coveredPositions = new HashMap<>();
+        Tokenizer tokenizer = new Tokenizer();
         String priorPath = null;
         for (int i = 0; i < documentCount; i++) {
             String path = readString(data, MAX_PATH_BYTES);
-            validatePath(path);
+            DocumentPaths.validate(path);
             if (priorPath != null && priorPath.compareTo(path) >= 0) {
                 throw new IOException("Index documents are out of order");
             }
@@ -132,6 +138,7 @@ public final class IndexStore {
             documents.add(new IndexedDocument(path, length));
             contents.put(path, readString(data, MAX_CONTENT_BYTES));
             lengths.put(path, length);
+            coveredPositions.put(path, new BitSet());
             priorPath = path;
         }
         int termCount = readCount(data, MAX_TERMS, "term count");
@@ -139,7 +146,8 @@ public final class IndexStore {
         String priorTerm = null;
         for (int i = 0; i < termCount; i++) {
             String term = readString(data, MAX_TERM_BYTES);
-            if (term.isBlank() || (priorTerm != null && priorTerm.compareTo(term) >= 0)) {
+            if (!tokenizer.normalizeWord(term).equals(term)
+                    || (priorTerm != null && priorTerm.compareTo(term) >= 0)) {
                 throw new IOException("Index terms are invalid or out of order");
             }
             int postingCount = readCount(data, documentCount, "posting count");
@@ -164,6 +172,11 @@ public final class IndexStore {
                     if (position <= priorPosition || position >= lengths.get(path)) {
                         throw new IOException("Index posting position is invalid");
                     }
+                    BitSet covered = coveredPositions.get(path);
+                    if (covered.get(position)) {
+                        throw new IOException("Index token position belongs to multiple terms");
+                    }
+                    covered.set(position);
                     positions.add(position);
                     priorPosition = position;
                 }
@@ -173,15 +186,12 @@ public final class IndexStore {
             postings.put(term, List.copyOf(termPostings));
             priorTerm = term;
         }
-        return new InMemoryIndex(documents, postings, contents, new Tokenizer());
-    }
-
-    private static void validatePath(String path) throws IOException {
-        if (path.isBlank() || path.startsWith("/") || path.contains("\\") || path.contains(":")
-                || Arrays.stream(path.split("/", -1)).anyMatch(part -> part.isEmpty() || part.equals(".")
-                        || part.equals(".."))) {
-            throw new IOException("Index document path is invalid");
+        for (IndexedDocument document : documents) {
+            if (coveredPositions.get(document.path()).cardinality() != document.tokenCount()) {
+                throw new IOException("Index document has missing token positions: " + document.path());
+            }
         }
+        return new InMemoryIndex(documents, postings, contents, tokenizer);
     }
 
     private static int readCount(DataInputStream data, int maximum, String name) throws IOException {
