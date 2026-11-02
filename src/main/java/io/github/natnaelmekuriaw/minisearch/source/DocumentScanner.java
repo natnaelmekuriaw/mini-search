@@ -15,6 +15,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.stream.StreamSupport;
+import java.util.stream.Collectors;
 
 public final class DocumentScanner {
     public static final long MAX_DOCUMENT_BYTES = 8L * 1024 * 1024;
@@ -37,9 +39,11 @@ public final class DocumentScanner {
                     throw new IOException("Document exceeds " + MAX_DOCUMENT_BYTES + " bytes: " + file);
                 }
                 try {
-                    String path = directory.relativize(file).toString().replace('\\', '/');
+                    String path = StreamSupport.stream(directory.relativize(file).spliterator(), false)
+                            .map(Path::toString).collect(Collectors.joining("/"));
+                    DocumentPaths.validate(path);
                     documents.add(new SourceDocument(path, readContent(file)));
-                } catch (IOException exception) {
+                } catch (IOException | IllegalArgumentException exception) {
                     throw new IOException("Cannot read document: " + file, exception);
                 }
                 return FileVisitResult.CONTINUE;

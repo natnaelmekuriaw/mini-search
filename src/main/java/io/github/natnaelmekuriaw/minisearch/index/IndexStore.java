@@ -1,6 +1,7 @@
 package io.github.natnaelmekuriaw.minisearch.index;
 
 import io.github.natnaelmekuriaw.minisearch.text.Tokenizer;
+import io.github.natnaelmekuriaw.minisearch.source.DocumentPaths;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
@@ -19,7 +20,6 @@ import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -124,7 +124,7 @@ public final class IndexStore {
         String priorPath = null;
         for (int i = 0; i < documentCount; i++) {
             String path = readString(data, MAX_PATH_BYTES);
-            validatePath(path);
+            DocumentPaths.validate(path);
             if (priorPath != null && priorPath.compareTo(path) >= 0) {
                 throw new IOException("Index documents are out of order");
             }
@@ -174,14 +174,6 @@ public final class IndexStore {
             priorTerm = term;
         }
         return new InMemoryIndex(documents, postings, contents, new Tokenizer());
-    }
-
-    private static void validatePath(String path) throws IOException {
-        if (path.isBlank() || path.startsWith("/") || path.contains("\\") || path.contains(":")
-                || Arrays.stream(path.split("/", -1)).anyMatch(part -> part.isEmpty() || part.equals(".")
-                        || part.equals(".."))) {
-            throw new IOException("Index document path is invalid");
-        }
     }
 
     private static int readCount(DataInputStream data, int maximum, String name) throws IOException {

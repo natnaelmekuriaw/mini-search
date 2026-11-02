@@ -2,6 +2,7 @@ package io.github.natnaelmekuriaw.minisearch.search;
 
 import io.github.natnaelmekuriaw.minisearch.text.Token;
 import io.github.natnaelmekuriaw.minisearch.text.Tokenizer;
+import io.github.natnaelmekuriaw.minisearch.source.DocumentPaths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -45,10 +46,7 @@ public final class QueryParser {
                 if (pathPrefix != null) {
                     throw new IllegalArgumentException("Only one path filter is allowed");
                 }
-                pathPrefix = token.substring(5).replace('\\', '/');
-                if (pathPrefix.isEmpty() || pathPrefix.startsWith("/")) {
-                    throw new IllegalArgumentException("Path filter must be a relative prefix");
-                }
+                pathPrefix = DocumentPaths.normalizePrefix(token.substring(5));
             } else {
                 expressionTokens.add(token);
             }
