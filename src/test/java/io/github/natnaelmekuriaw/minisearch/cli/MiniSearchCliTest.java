@@ -28,6 +28,23 @@ class MiniSearchCliTest {
     private final MiniSearchCli cli = new MiniSearchCli();
 
     @Test
+    void pagesCliResultsUsingTheSameOffsetAsTheApi() throws IOException {
+        Path source = Files.createDirectory(directory.resolve("docs"));
+        Files.writeString(source.resolve("a.md"), "java");
+        Files.writeString(source.resolve("b.md"), "java");
+        Path snapshot = directory.resolve("index.bin");
+        assertEquals(0, run("index", "--source", source.toString(),
+                "--index", snapshot.toString()).code());
+        Result second = run("search", "--index", snapshot.toString(), "--query", "java",
+                "--offset", "1", "--limit", "1");
+        assertEquals(0, second.code());
+        assertTrue(second.out().contains("b.md"));
+        assertFalse(second.out().contains("a.md"));
+        assertEquals(2, run("search", "--index", snapshot.toString(), "--query", "java",
+                "--offset", "-1").code());
+    }
+
+    @Test
     void indexesAndSearchesSavedDocuments() throws IOException {
         Path source = Files.createDirectory(directory.resolve("docs"));
         Files.writeString(source.resolve("guide.md"), "Java search engine");

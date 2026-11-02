@@ -21,7 +21,7 @@ public final class MiniSearchCli {
     private static final String USAGE = """
             Usage:
               java -jar <jar-file> index --source <directory> --index <file>
-              java -jar <jar-file> search --index <file> --query <text> [--limit <number>]
+              java -jar <jar-file> search --index <file> --query <text> [--limit <number>] [--offset <number>]
               java -jar <jar-file> suggest --index <file> --prefix <word> [--limit <number>]
               java -jar <jar-file> serve --index <file> [--host <address>] [--port <number>]
               java -jar <jar-file> --help
@@ -88,11 +88,21 @@ public final class MiniSearchCli {
     }
 
     private void search(String[] args, PrintStream out) throws IOException {
-        Map<String, String> options = parseOptions(args, Set.of("index", "query", "limit"));
+        Map<String, String> options = parseOptions(args, Set.of("index", "query", "limit", "offset"));
         Path snapshot = Path.of(required(options, "index"));
         String query = required(options, "query");
         int limit = parseLimit(options.getOrDefault("limit", "20"));
-        List<SearchResult> results = new SearchService(repository.open(snapshot)).search(query, limit);
+        int offset;
+        try {
+            offset = Integer.parseInt(options.getOrDefault("offset", "0"));
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("--offset must be a nonnegative integer", exception);
+        }
+        if (offset < 0) {
+            throw new IllegalArgumentException("--offset must be a nonnegative integer");
+        }
+        List<SearchResult> results = new SearchService(repository.open(snapshot))
+                .searchPage(query, offset, limit).results();
         out.printf(Locale.ROOT, "%d result%s%n", results.size(), results.size() == 1 ? "" : "s");
         for (SearchResult result : results) {
             out.printf(Locale.ROOT, "%s  %.3f%n", result.path(), result.score());
